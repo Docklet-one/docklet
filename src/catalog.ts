@@ -28,7 +28,7 @@ export const RECOMMENDED: CatalogEntry[] = [
     category: '工具',
     recommended: true,
     tagline: '手机上的 DSH 控制台，收发消息、处理审批与提问',
-    version: '1.0.154',
+    version: '1.0.158',
     capabilities: ['fs', 'openExternal', 'clipboard', 'share', 'background', 'download'],
     permissions: [{ name: 'notifications', reason: '接收新消息提醒' }],
   },
