@@ -378,6 +378,7 @@ export function InstallPage({
     info: HostedApp & { token?: string },
   ) => {
     cancelledRef.current = false
+    const startedAt = Date.now()
     setInstalling(true)
     setPct(null)
     setInstallFailed(false)
@@ -412,6 +413,9 @@ export function InstallPage({
       setWarn(short === '获取失败' ? '安装失败 原因未知' : `获取失败：${short}`)
       window.setTimeout(() => setWarn(''), 3000)
     } finally {
+      // 小包安装可能一帧内完成；最少让「获取中…」显示 600ms
+      const remain = 600 - (Date.now() - startedAt)
+      if (remain > 0) await new Promise((resolve) => window.setTimeout(resolve, remain))
       setInstalling(false)
       setPct(null)
     }
@@ -421,11 +425,16 @@ export function InstallPage({
     const target = entry.url ?? ''
     if (!target) return
     setMessage('')
+    // inspect（下载/检查 zip）阶段也给按钮反馈，不能等 runCatalogInstall 才进入安装态
+    setInstalling(true)
+    setPct(null)
     try {
       const info = await inspectFromUrl(target)
       if (info.id !== entry.id) throw new Error('ID_MISMATCH')
       const current = hosted.find((app) => app.id === entry.id)
       if (current && !isNewer(entry.version, current.version)) {
+        setInstalling(false)
+        setPct(null)
         setOverwrite({
           id: info.id,
           name: info.name,
@@ -440,6 +449,8 @@ export function InstallPage({
     } catch (error) {
       const reason = explain(error)
       setInstallFailed(true)
+      setInstalling(false)
+      setPct(null)
       setWarn(reason === 'ID_MISMATCH' ? '应用 ID 与目录不一致' : '获取失败')
       window.setTimeout(() => setWarn(''), 3000)
     }
