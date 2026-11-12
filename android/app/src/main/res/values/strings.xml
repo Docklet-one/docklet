@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Docklet</string>
+    <string name="title_activity_main">Docklet</string>
+    <string name="package_name">com.docklet.app</string>
+    <string name="custom_url_scheme">com.docklet.app</string>
+</resources>

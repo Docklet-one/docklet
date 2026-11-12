@@ -1,0 +1,35 @@
+{
+  "name": "docklet",
+  "private": true,
+  "version": "1.0.1",
+  "type": "module",
+  "description": "Docklet —— 开放的应用小坞：安装、展示与运行目录应用",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "build:app": "tsc --noEmit && vite build --mode app",
+    "cap:sync": "npm run build:app && cap sync android",
+    "cap:open": "cap open android",
+    "apk": "npm run cap:sync && cd android && gradlew.bat assembleDebug",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/filesystem": "^6.0.4",
+    "@capacitor/keyboard": "^6.0.4",
+    "@capacitor/status-bar": "^6.0.3",
+    "capacitor-plugin-safe-area": "^3.0.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "^1.6.0"
+  }
+}

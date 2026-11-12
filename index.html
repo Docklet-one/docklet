@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#F1F7EC" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/bee/icon-rounded.png" />
+    <style>
+      html, body { background: #f4f1ec; }
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #f4f1ec;
+        pointer-events: none;
+        transition: opacity 0.25s ease;
+      }
+      #boot.is-hiding {
+        opacity: 0;
+      }
+      #boot img {
+        width: 104px;
+        height: 104px;
+        border-radius: 24px;
+        box-shadow: 0 18px 36px rgb(217 138 43 / 24%);
+      }
+      #boot b {
+        margin-top: 22px;
+        font: 500 30px/1.1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: #33261c;
+      }
+      #boot i {
+        margin-top: 6px;
+        font: normal 13px/1.2 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: #8b7f70;
+        letter-spacing: 0.14em;
+      }
+      #boot .dots {
+        position: absolute;
+        bottom: 96px;
+        display: flex;
+        gap: 7px;
+      }
+      #boot .dots span {
+        width: 6px;
+        height: 6px;
+        background: #c9bda9;
+        border-radius: 50%;
+      }
+      #boot .dots span:nth-child(2) { opacity: 0.65; }
+      #boot .dots span:nth-child(3) { opacity: 0.35; }
+    </style>
+    <title>Docklet · 应用小坞</title>
+  </head>
+  <body>
+    <div id="boot" aria-hidden="true">
+      <img src="/icons/bee/icon-rounded.png" alt="" />
+      <b>Docklet</b>
+      <i>— 应用小坞</i>
+      <span class="dots"><span></span><span></span><span></span></span>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

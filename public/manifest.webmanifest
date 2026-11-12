@@ -1,0 +1,25 @@
+{
+  "name": "Docklet 应用小坞",
+  "short_name": "Docklet",
+  "description": "Docklet 是一个轻量的 Android 应用坞：简单的小应用不必每个都封装成 APK，收进坞里就能用。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F1EC",
+  "theme_color": "#FFC13B",
+  "icons": [
+    {
+      "src": "/icons/bee/icon-rounded.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/bee/adaptive-foreground.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

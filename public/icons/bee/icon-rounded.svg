@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="308" y2="512">
+      <stop offset="0" stop-color="#FFE28A" />
+      <stop offset="0.55" stop-color="#FFCB4F" />
+      <stop offset="1" stop-color="#FFB23E" />
+    </linearGradient>
+    <clipPath id="body"><ellipse cx="300" cy="330" rx="80" ry="95" /></clipPath>
+  </defs>
+<rect width="512" height="512" rx="96" fill="url(#bg)" />
+
+  <path d="M150 120h95a140 140 0 0 1 0 280h-95z" fill="#FFFFFF" />
+  <path d="M212 182h37a78 78 0 0 1 0 156h-37z" fill="url(#bg)" />
+  <g transform="translate(300 320) scale(0.86) translate(-300 -320)">
+    <ellipse cx="246" cy="264" rx="46" ry="26" fill="#FFF3CE" stroke="#B9852F" stroke-width="5" transform="rotate(-24 246 264)" />
+    <ellipse cx="354" cy="264" rx="46" ry="26" fill="#FFF3CE" stroke="#B9852F" stroke-width="5" transform="rotate(24 354 264)" />
+    <path d="M246 264c-12-4-22-10-30-18" stroke="#B9852F" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.55" />
+    <path d="M354 264c12-4 22-10 30-18" stroke="#B9852F" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.55" />
+    <ellipse cx="300" cy="330" rx="80" ry="95" fill="#FFC33C" />
+    <g clip-path="url(#body)">
+      <rect x="220" y="292" width="160" height="26" fill="#3B2A1A" />
+      <rect x="220" y="344" width="160" height="26" fill="#3B2A1A" />
+      <rect x="220" y="396" width="160" height="22" fill="#3B2A1A" />
+    </g>
+    <path d="M262 404l-8 26M338 404l8 26" stroke="#3B2A1A" stroke-width="7" stroke-linecap="round" />
+    <circle cx="300" cy="236" r="52" fill="#FFC33C" />
+    <path d="M286 190c-8-18-16-26-30-30" stroke="#3B2A1A" stroke-width="7" stroke-linecap="round" fill="none" />
+    <circle cx="254" cy="158" r="7" fill="#3B2A1A" />
+    <path d="M314 190c8-18 16-26 30-30" stroke="#3B2A1A" stroke-width="7" stroke-linecap="round" fill="none" />
+    <circle cx="346" cy="158" r="7" fill="#3B2A1A" />
+    <circle cx="284" cy="228" r="7" fill="#3B2A1A" />
+    <circle cx="316" cy="228" r="7" fill="#3B2A1A" />
+    <path d="M284 250q16 14 32 0" stroke="#3B2A1A" stroke-width="6" stroke-linecap="round" fill="none" />
+    <ellipse cx="268" cy="244" rx="9" ry="6" fill="#FF9F5A" opacity="0.55" />
+    <ellipse cx="332" cy="244" rx="9" ry="6" fill="#FF9F5A" opacity="0.55" />
+  </g>
+</svg>
