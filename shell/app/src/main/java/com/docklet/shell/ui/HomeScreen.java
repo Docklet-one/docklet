@@ -10,6 +10,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.net.Uri;
+import android.os.Build;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
@@ -1626,9 +1627,21 @@ public final class HomeScreen extends LinearLayout {
     }
 
     private boolean notificationsEnabled() {
+        // Android 13+：POST_NOTIFICATIONS 未授权时 areNotificationsEnabled()
+        // 在部分机型上仍返回 true，必须显式查权限。
+        if (Build.VERSION.SDK_INT >= 33
+                && activity.checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
         NotificationManager manager =
                 (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE);
         return manager == null || manager.areNotificationsEnabled();
+    }
+
+    /** 重建活动页，让权限/开关状态立刻反映到界面上。 */
+    public void refreshActivityPage() {
+        if (activeTab == 1) showTab(1);
     }
 
     private List<InstalledModule> notifyingModules() {

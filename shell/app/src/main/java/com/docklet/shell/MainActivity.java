@@ -3203,6 +3203,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             boolean granted = grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED;
             showSnack(granted ? "通知权限已开启" : "通知权限被拒绝");
+            if (home != null) home.refreshActivityPage();
         }
     }
 
@@ -3358,6 +3359,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     @Override
     protected void onResume() {
         super.onResume();
+        if (home != null) home.refreshActivityPage();
         if (moduleAwaitingResult) {
             // Coming back from a module: the closing gesture can reach us as
             // one more back, which must not leave 首页.
