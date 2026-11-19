@@ -1,7 +1,12 @@
 # Docklet 壳
 
 Android 壳：负责模块的安装、运行、隔离、存储和恢复。模块是独立的 HTML 包，
-从在线目录安装，壳本身不预置任何模块。
+壳本身不预置任何模块，安装方式有两种：
+
+```text
+1. 从存储桶拉取安装：壳读取在线目录，按条目下载 .pkg 后安装
+2. 本地导入安装：在「模块 → 本地安装」里粘贴 .pkg 链接，或从文件管理器选择本地包
+```
 
 ## 目录
 
@@ -32,7 +37,7 @@ powershell -ExecutionPolicy Bypass -File tools/build.ps1
 dist/docklet-shell-0.1.0-debug.apk
 ```
 
-`apps/` 为空时编译得到“空壳”，装到手机后从在线目录安装模块。
+`apps/` 为空时编译得到“空壳”，装到手机后按上面的两种方式安装模块。
 
 ## 安装
 
@@ -44,4 +49,3 @@ adb install -r dist/docklet-shell-0.1.0-debug.apk
 
 - 模块源码在 `apps/<id>/`，由模块侧负责，壳不修改
 - 壳扫描 `apps/*/module.json` 把模块打进 APK（仓库里该目录为空）
-- 运行时模块优先来自 `https://apps.docklet.cn/catalog.json`
