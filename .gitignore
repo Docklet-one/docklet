@@ -1,0 +1,34 @@
+# 壳仓库只放源码
+#
+# 1) 模块源码是独立项目，不进壳仓库
+apps/
+
+# 2) 构建产物
+shell/.gradle/
+shell/app/build/
+shell/core/build/
+shell/build/
+dist/
+*.apk
+*.pkg
+*.zip
+
+# 3) 本机配置与工具链
+shell/local.properties
+.tools/
+.gradle-home/
+.android/
+.tmp/
+backups/
+designs/
+
+# 4) 可执行工具（构建/调试用，不进仓库）
+*.exe
+*.dll
+*.dylib
+*.so
+*.log
+
+# 5) 系统杂项
+.DS_Store
+Thumbs.db

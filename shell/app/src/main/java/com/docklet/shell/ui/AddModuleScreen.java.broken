@@ -1,0 +1,2589 @@
+package com.docklet.shell.ui;
+
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.Dialog;
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
+import android.os.SystemClock;
+import android.text.InputFilter;
+import android.text.InputType;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.docklet.platform.InstalledModule;
+import com.docklet.platform.ModuleException;
+import com.docklet.platform.SemVer;
+import com.docklet.shell.demo.DemoApp;
+import com.docklet.shell.runtime.ModuleCategories;
+import com.docklet.shell.runtime.FavoriteModules;
+import com.docklet.shell.runtime.ModuleUsage;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/** Full-screen add module page: examples, remote catalog and local file. */
+@SuppressLint("ViewConstructor")
+public final class AddModuleScreen extends LinearLayout {
+
+    public interface Listener {
+        void onClose();
+
+        void onDemo(DemoApp app, String state);
+
+        void onDemoDetails(DemoApp app, String state);
+
+        void onRemote();
+
+        void onPickFile(String sha256);
+
+        void onUrl(String url, String sha256);
+
+        void onOpenInstalled(InstalledModule module);
+
+        void onInstalledDetails(InstalledModule module);
+
+        void onNavigate(int tab);
+
+        void onAddToDesktop(InstalledModule module);
+
+        void onUninstall(InstalledModule module);
+    }
+
+    private final Activity activity;
+    private final List<DemoApp> demoApps;
+    private final Map<String, InstalledModule> installed = new HashMap<>();
+    private final Listener listener;
+    private final FrameLayout contentHost;
+    private final LinearLayout tabs;
+    private View searchWrap;
+    private EditText searchInput;
+    private String query = "";
+    private String category = ModuleCategories.DEFAULT_ID;
+    private int activeTab;
+    private LinearLayout railHost;
+    private LinearLayout paneHost;
+    private final Map<String, View> railButtons = new HashMap<>();
+    private final Map<String, Integer> railColors = new HashMap<>();
+    private final List<String> railOrder = new ArrayList<>();
+    private boolean categorySwipeConsumed;
+
+    private static final int SIGNAL_RED = 0xFFD94841;
+    private static final int DEFAULT_SOFT = 0xFFFFE8E5;
+    private static final int UNCLASSIFIED_SOFT = 0xFFE5EAF2;
+
+    public AddModuleScreen(
+            Activity activity,
+            List<DemoApp> demoApps,
+            List<InstalledModule> modules,
+            Listener listener
+    ) {
+        super(activity);
+        this.activity = activity;
+        this.demoApps = demoApps;
+        this.listener = listener;
+        if (modules != null) {
+            for (InstalledModule module : modules) installed.put(module.id(), module);
+        }
+        setOrientation(VERTICAL);
+        setBackgroundColor(UiKit.BG);
+        setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        addView(buildHeader(), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        tabs = buildTabs();
+        LinearLayout.LayoutParams tabsParams = (LinearLayout.LayoutParams) tabs.getLayoutParams();
+        addView(tabs, tabsParams == null
+                ? new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                : tabsParams);
+        contentHost = new FrameLayout(activity);
+        addView(contentHost, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        ));
+        addView(buildBottomNav(), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(70)
+        ));
+        showTab(0);
+    }
+
+    public void refreshInstalled(List<InstalledModule> modules) {
+        installed.clear();
+        if (modules != null) {
+            for (InstalledModule module : modules) installed.put(module.id(), module);
+        }
+        rebuildBody();
+    }
+
+    private int dp(float value) {
+        return UiKit.dp(activity, value);
+    }
+
+    private View buildHeader() {
+        LinearLayout header = new LinearLayout(activity);
+        header.setOrientation(VERTICAL);
+        header.setPadding(dp(20), dp(10), dp(20), 0);
+
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        header.addView(row, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+        ));
+
+        FrameLayout back = new FrameLayout(activity);
+        back.setBackground(UiKit.ripple(activity, UiKit.SURFACE, 19f));
+        back.setClickable(true);
+        back.setFocusable(true);
+        back.setContentDescription("返回");
+        IconView icon = new IconView(activity).type(IconView.Type.BACK);
+        icon.setColor(UiKit.INK);
+        back.addView(icon, new FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER));
+        back.setOnClickListener(view -> listener.onClose());
+        row.addView(back, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        searchWrap = buildSearchBar();
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
+                0, dp(40), 1f
+        );
+        searchParams.leftMargin = dp(10);
+        row.addView(searchWrap, searchParams);
+        return header;
+    }
+
+    private LinearLayout buildBottomNav() {
+        LinearLayout bar = new LinearLayout(activity);
+        bar.setOrientation(HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(14), dp(7), dp(14), dp(8));
+        bar.setBackgroundColor(Color.rgb(255, 252, 245));
+        bar.setElevation(dp(8));
+        addNavItem(bar, "首页", IconView.Type.GRID, 0, false);
+        addNavItem(bar, "活动", IconView.Type.ACTIVITY, 1, false);
+        addNavItem(bar, "应用", IconView.Type.DOWNLOAD, 2, true);
+        addNavItem(bar, "设置", IconView.Type.SETTINGS, 3, false);
+        return bar;
+    }
+
+    private void addNavItem(LinearLayout bar, String label, IconView.Type type,
+                            int index, boolean selected) {
+        LinearLayout tab = new LinearLayout(activity);
+        tab.setOrientation(VERTICAL);
+        tab.setGravity(Gravity.CENTER);
+        tab.setBackground(selected
+                ? UiKit.rounded(activity, UiKit.SURFACE_SOFT, 15f)
+                : UiKit.rounded(activity, Color.TRANSPARENT, 15f));
+        tab.setClickable(true);
+        tab.setFocusable(true);
+        tab.setContentDescription(label);
+        IconView icon = new IconView(activity).type(type);
+        icon.setColor(selected ? UiKit.INK : UiKit.FAINT);
+        tab.addView(icon, new LinearLayout.LayoutParams(dp(20), dp(20)));
+        TextView text = UiKit.text(activity, label, 9.5f,
+                selected ? UiKit.INK : UiKit.FAINT, true);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        textParams.topMargin = dp(4);
+        tab.addView(text, textParams);
+        if (index != 2) tab.setOnClickListener(view -> listener.onNavigate(index));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(54), 1f);
+        if (index > 0) params.leftMargin = dp(4);
+        bar.addView(tab, params);
+    }
+
+    private LinearLayout buildTabs() {
+        LinearLayout segment = new LinearLayout(activity);
+        segment.setOrientation(HORIZONTAL);
+        segment.setPadding(dp(4), dp(4), dp(4), dp(4));
+        segment.setBackground(UiKit.rounded(activity, UiKit.SURFACE_SOFT, 13f));
+        LinearLayout.LayoutParams segmentParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        segmentParams.leftMargin = dp(20);
+        segmentParams.rightMargin = dp(20);
+        segmentParams.topMargin = dp(14);
+        segmentParams.bottomMargin = dp(12);
+        segment.setLayoutParams(segmentParams);
+        addTab(segment, 0, "已装应用");
+        addTab(segment, 1, "在线应用");
+        addTab(segment, 2, "本地安装");
+        return segment;
+    }
+
+    private void addTab(LinearLayout segment, int index, String label) {
+        TextView tab = UiKit.text(activity, label, 11f, UiKit.MUTED, true);
+        tab.setGravity(Gravity.CENTER);
+        tab.setPadding(0, dp(9), 0, dp(9));
+        tab.setClickable(true);
+        tab.setFocusable(true);
+        tab.setOnClickListener(view -> showTab(index));
+        segment.addView(tab, new LinearLayout.LayoutParams(0, dp(35), 1f));
+    }
+
+    private View buildSearchBar() {
+        FrameLayout box = new FrameLayout(activity);
+        box.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 14f));
+
+        IconView icon = new IconView(activity).type(IconView.Type.SEARCH);
+        icon.setColor(UiKit.FAINT);
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
+                dp(17), dp(17), Gravity.START | Gravity.CENTER_VERTICAL
+        );
+        iconParams.leftMargin = dp(13);
+        box.addView(icon, iconParams);
+
+        EditText input = new EditText(activity);
+        input.setSingleLine(true);
+        input.setTextSize(12f);
+        input.setTextColor(UiKit.INK);
+        input.setHintTextColor(UiKit.FAINT);
+        input.setHint("搜索模块、功能�?);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setPadding(dp(40), 0, dp(13), 0);
+        input.setBackgroundColor(Color.TRANSPARENT);
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                query = s == null ? "" : s.toString().trim();
+                rebuildBody();
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+            }
+        });
+        box.addView(input, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        searchInput = input;
+        return box;
+    }
+
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent event) {
+        if (switchingPage) return false;
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            pageDownX = event.getX();
+            pageDownY = event.getY();
+            pageSwipeCandidate = !isPageSwipeBlockedTarget(event);
+            pageSwipeLocked = false;
+            pageSwipeSwitched = false;
+            pageSwipeDirection = 0;
+            return false;
+        }
+        if (action == MotionEvent.ACTION_MOVE && pageSwipeCandidate) {
+            if (pageSwipeLocked) return true;
+            float dx = event.getX() - pageDownX;
+            float dy = event.getY() - pageDownY;
+            int slop = pageTouchSlop();
+            if (Math.abs(dx) > slop
+                    && Math.abs(dx) > Math.abs(dy) * 1.2f
+                    && Math.abs(dy) < slop * 1.5f) {
+                pageSwipeLocked = true;
+                pageSwipeDirection = dx < 0 ? 1 : -1;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (!pageSwipeLocked) return super.onTouchEvent(event);
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP) {
+            if (!pageSwipeSwitched) {
+                pageSwipeSwitched = true;
+                switchPageBySwipe(pageSwipeDirection);
+            }
+            return true;
+        }
+        if (action == MotionEvent.ACTION_CANCEL) {
+            pageSwipeLocked = false;
+            pageSwipeCandidate = false;
+            return true;
+        }
+        return true;
+    }
+
+    private int pageTouchSlop() {
+        if (pageTouchSlop < 0) {
+            pageTouchSlop = android.view.ViewConfiguration.get(activity)
+                    .getScaledTouchSlop();
+        }
+        return pageTouchSlop;
+    }
+
+    private boolean isPageSwipeBlockedTarget(MotionEvent event) {
+        View current = findViewAt(this, event.getX(), event.getY());
+        while (current != null && current != this) {
+            if (current instanceof EditText
+                    || current instanceof android.widget.Switch
+                    || current instanceof android.widget.Button
+                    || current instanceof android.widget.CheckBox
+                    || current instanceof android.widget.RadioButton) {
+                return true;
+            }
+            // Cards and rows are clickable containers and may start a page
+            // swipe. A clickable TextView is a real control (tab/button/link).
+            if (current.isClickable() && current instanceof TextView) return true;
+            current = current.getParent() instanceof View ? (View) current.getParent() : null;
+        }
+        return false;
+    }
+
+    private View findViewAt(ViewGroup parent, float x, float y) {
+        for (int i = parent.getChildCount() - 1; i >= 0; i -= 1) {
+            View child = parent.getChildAt(i);
+            if (!(child instanceof ViewGroup)) continue;
+            float childX = x - child.getLeft() - child.getTranslationX();
+            float childY = y - child.getTop() - child.getTranslationY();
+            if (childX >= 0 && childY >= 0
+                    && childX < child.getWidth() && childY < child.getHeight()) {
+                return findViewAt((ViewGroup) child, childX, childY);
+            }
+        }
+        return parent;
+    }
+
+    private void switchPageBySwipe(int direction) {
+        int next = activeTab + direction;
+        if (next < 0 || next >= 3 || switchingPage || switchingCategory) return;
+        switchingPage = true;
+        View old = contentHost.getChildAt(0);
+        float offset = dp(26);
+        float oldX = direction > 0 ? -offset : offset;
+        if (old == null) {
+            showTab(next);
+            switchingPage = false;
+            return;
+        }
+        old.animate()
+                .translationX(oldX)
+                .alpha(0f)
+                .setDuration(80)
+                .withEndAction(() -> {
+                    showTab(next);
+                    View fresh = contentHost.getChildAt(0);
+                    if (fresh == null) {
+                        switchingPage = false;
+                        return;
+                    }
+                    fresh.setTranslationX(-oldX);
+                    fresh.setAlpha(0f);
+                    fresh.animate()
+                            .translationX(0f)
+                            .alpha(1f)
+                            .setDuration(120)
+                            .withEndAction(() -> switchingPage = false)
+                            .start();
+                })
+                .start();
+    }
+
+    private void showTab(int index) {
+        activeTab = index;
+        for (int i = 0; i < tabs.getChildCount(); i += 1) {
+            TextView tab = (TextView) tabs.getChildAt(i);
+            boolean selected = i == index;
+            tab.setTextColor(selected ? UiKit.INK : UiKit.MUTED);
+            tab.setBackground(selected
+                    ? UiKit.rounded(activity, UiKit.SURFACE, 10f)
+                    : UiKit.rounded(activity, Color.TRANSPARENT, 10f));
+        }
+        category = index == 0 ? ModuleCategories.DEFAULT_ID : "";
+        rebuildBody();
+    }
+
+    private void rebuildBody() {
+        if (contentHost == null) return;
+        contentHost.removeAllViews();
+        if (activeTab == 2) {
+            buildLocalBody();
+        } else {
+            buildTwoPane();
+        }
+    }
+
+    private void buildLocalBody() {
+        ScrollView scroll = new ScrollView(activity);
+        scroll.setFillViewport(true);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        scroll.setVerticalScrollBarEnabled(false);
+        LinearLayout content = new LinearLayout(activity);
+        content.setOrientation(VERTICAL);
+        content.setPadding(dp(20), 0, dp(20), dp(28));
+        scroll.addView(content, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        buildLocalInstall(content);
+        contentHost.addView(scroll, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+    }
+
+    private void buildTwoPane() {
+        boolean repository = activeTab == 1;
+        List<ModuleCategories.Category> categories = ModuleCategories.customList(activity);
+
+        LinearLayout body = new LinearLayout(activity);
+        body.setOrientation(HORIZONTAL);
+        body.setPadding(dp(20), 0, dp(20), 0);
+
+        ScrollView sideScroll = new ScrollView(activity);
+        sideScroll.setVerticalScrollBarEnabled(false);
+        LinearLayout side = new LinearLayout(activity);
+        side.setOrientation(VERTICAL);
+        side.setPadding(0, dp(4), dp(10), dp(20));
+        railHost = side;
+        railButtons.clear();
+        railColors.clear();
+        railOrder.clear();
+        if (repository) {
+            addRepositoryCategories(side);
+        } else {
+            addInstalledCategories(side, categories);
+        }
+        // The rail is the only category order. Never re-derive it from
+        // customList() after this point.
+        if (!railOrder.contains(category)) {
+            category = railOrder.isEmpty() ? "" : railOrder.get(0);
+        }
+        sideScroll.addView(side, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        body.addView(sideScroll, new LinearLayout.LayoutParams(
+                dp(86), ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        paneHost = new LinearLayout(activity);
+        paneHost.setOrientation(VERTICAL);
+        body.addView(paneHost, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
+        ));
+        buildRightPane();
+        contentHost.addView(body, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+    }
+
+    private void buildRightPane() {
+        if (paneHost == null) return;
+        boolean repository = activeTab == 1;
+        paneHost.removeAllViews();
+        paneHost.setPadding(0, 0, 0, 0);
+        if (!repository && ModuleCategories.DEFAULT_ID.equals(category)) {
+            paneHost.addView(new View(activity), new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(12)
+            ));
+        }
+
+        CategoryScrollView listScroll = new CategoryScrollView(activity);
+        listScroll.setFillViewport(true);
+        listScroll.setScrollbarFadingEnabled(false);
+        listScroll.setVerticalScrollBarEnabled(false);
+        listScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        LinearLayout list = new LinearLayout(activity);
+        list.setOrientation(VERTICAL);
+        list.setPadding(dp(2), 0, 0, dp(28));
+        listScroll.addView(list, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        paneHost.addView(listScroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        ));
+        if (!repository && !ModuleCategories.DEFAULT_ID.equals(category)) {
+            boolean unclassified = ModuleCategories.UNCLASSIFIED_ID.equals(category);
+            String titleText = unclassified
+                    ? ModuleCategories.UNCLASSIFIED_NAME
+                    : ModuleCategories.nameOf(activity, category);
+            TextView listTitle = UiKit.text(
+                    activity,
+                    titleText,
+                    11.5f,
+                    unclassified ? SIGNAL_RED : UiKit.INK,
+                    true
+            );
+            listTitle.setPadding(dp(2), dp(16), dp(2), unclassified ? dp(4) : dp(7));
+            list.addView(listTitle);
+            if (unclassified) {
+                TextView hint = UiKit.text(
+                        activity,
+                        "新安装和未分类的应用都会显示在这里\n应用全部移走后该分类将隐�?,
+                        9.5f,
+                        UiKit.MUTED,
+                        false
+                );
+                hint.setLineSpacing(dp(1.5f), 1.2f);
+                hint.setPadding(dp(2), 0, dp(2), dp(9));
+                list.addView(hint);
+            }
+        }
+        if (repository) {
+            buildRepositoryList(list);
+        } else {
+            buildInstalledList(list);
+        }
+    }
+
+    private void selectCategory(String id) {
+        if (switchingCategory || !railOrder.contains(id)) return;
+        category = id;
+        refreshRailSelection();
+        buildRightPane();
+    }
+
+    private void refreshRailSelection() {
+        for (Map.Entry<String, View> entry : railButtons.entrySet()) {
+            View button = entry.getValue();
+            boolean selected = entry.getKey().equals(category);
+            if (button instanceof TextView) {
+                TextView text = (TextView) button;
+                text.setTextColor(selected ? UiKit.INK : UiKit.MUTED);
+                text.setTypeface(null, selected
+                        ? android.graphics.Typeface.BOLD
+                        : android.graphics.Typeface.NORMAL);
+                text.setBackground(selected
+                        ? UiKit.rounded(activity, UiKit.SURFACE, 11f)
+                        : UiKit.rounded(activity, Color.TRANSPARENT, 11f));
+                continue;
+            }
+            if (!(button instanceof FrameLayout)) continue;
+            FrameLayout frame = (FrameLayout) button;
+            if (frame.getChildCount() == 0) continue;
+            View tile = frame.getChildAt(0);
+            Integer color = railColors.get(entry.getKey());
+            tile.setBackground(UiKit.rounded(
+                    activity,
+                    selected ? UiKit.SURFACE : (color == null ? UiKit.SURFACE_SOFT : color),
+                    13f
+            ));
+            if (tile instanceof FrameLayout && ((FrameLayout) tile).getChildCount() > 0) {
+                View icon = ((FrameLayout) tile).getChildAt(0);
+                if (icon instanceof IconView) {
+                    boolean signpost = ModuleCategories.DEFAULT_ID.equals(entry.getKey());
+                    ((IconView) icon).setColor(signpost
+                            ? SIGNAL_RED
+                            : selected ? UiKit.INK : UiKit.MUTED);
+                }
+            }
+        }
+    }
+
+    private void setRailIconColor(View button, int color) {
+        if (!(button instanceof FrameLayout)) return;
+        FrameLayout frame = (FrameLayout) button;
+        if (frame.getChildCount() == 0) return;
+        View tile = frame.getChildAt(0);
+        if (!(tile instanceof FrameLayout)) return;
+        FrameLayout tileFrame = (FrameLayout) tile;
+        if (tileFrame.getChildCount() == 0) return;
+        View icon = tileFrame.getChildAt(0);
+        if (icon instanceof IconView) ((IconView) icon).setColor(color);
+    }
+
+    private long lastCategorySwipe;
+    private boolean switchingCategory;
+    private float pageDownX;
+    private float pageDownY;
+    private boolean pageSwipeCandidate;
+    private boolean pageSwipeLocked;
+    private boolean pageSwipeSwitched;
+    private int pageSwipeDirection;
+    private int pageTouchSlop = -1;
+    private boolean switchingPage;
+
+    /**
+     * The category gesture must see touches that start on a clickable module
+     * row too. A ScrollView OnTouchListener does not: the row becomes the
+     * touch target for ACTION_DOWN. dispatchTouchEvent runs before the child
+     * gets the event.
+     */
+    private final class CategoryScrollView extends ScrollView {
+        private float startX;
+        private float startY;
+        private boolean horizontal;
+        private boolean startedAtTop;
+        private boolean startedAtBottom;
+
+        CategoryScrollView(Context context) {
+            super(context);
+        }
+
+        @Override
+        public boolean dispatchTouchEvent(MotionEvent event) {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                startX = event.getX();
+                startY = event.getY();
+                horizontal = false;
+                categorySwipeConsumed = false;
+                // Ownership is fixed at DOWN. A gesture that starts inside a
+                // scrollable list belongs to the list even if it reaches an
+                // edge before the finger is lifted.
+                startedAtTop = !canScrollVertically(-1);
+                startedAtBottom = !canScrollVertically(1);
+                return super.dispatchTouchEvent(event);
+            }
+            if (action == MotionEvent.ACTION_MOVE) {
+                if (categorySwipeConsumed) return true;
+                if (horizontal) return super.dispatchTouchEvent(event);
+                float dx = event.getX() - startX;
+                float dy = event.getY() - startY;
+                if (Math.abs(dx) > Math.abs(dy) * 1.2f) {
+                    horizontal = true;
+                    return super.dispatchTouchEvent(event);
+                }
+                boolean next = dy < 0 && startedAtBottom;
+                boolean previous = dy > 0 && startedAtTop;
+                if ((next || previous)
+                        && Math.abs(dy) >= dp(40)
+                        && SystemClock.uptimeMillis() - lastCategorySwipe > 220
+                        && !switchingCategory) {
+                    lastCategorySwipe = SystemClock.uptimeMillis();
+                    categorySwipeConsumed = true;
+                    switchCategoryBySwipe(dy < 0 ? 1 : -1);
+                    return true;
+                }
+                return super.dispatchTouchEvent(event);
+            }
+            return super.dispatchTouchEvent(event);
+        }
+    }
+
+    private void switchCategoryBySwipe(int delta) {
+        if (railOrder.isEmpty() || switchingCategory) return;
+        int index = railOrder.indexOf(category);
+        if (index < 0) return;
+        int next = (index + delta + railOrder.size()) % railOrder.size();
+        if (next == index) return;
+        category = railOrder.get(next);
+        refreshRailSelection();
+        animateCategorySwitch(delta);
+    }
+
+    private void animateCategorySwitch(int direction) {
+        View old = paneHost;
+        if (old == null) {
+            buildRightPane();
+            return;
+        }
+        float offset = dp(22);
+        float oldY = direction > 0 ? -offset : offset;
+        switchingCategory = true;
+        old.animate()
+                .translationY(oldY)
+                .alpha(0f)
+                .setDuration(70)
+                .withEndAction(() -> {
+                    buildRightPane();
+                    View next = paneHost;
+                    if (next == null) {
+                        switchingCategory = false;
+                        return;
+                    }
+                    next.setTranslationY(-oldY);
+                    next.setAlpha(0f);
+                    next.animate()
+                            .translationY(0f)
+                            .alpha(1f)
+                            .setDuration(110)
+                            .withEndAction(() -> switchingCategory = false)
+                            .start();
+                })
+                .start();
+    }
+
+    private List<InstalledModule> unclassifiedModules() {
+        List<InstalledModule> result = new ArrayList<>();
+        for (InstalledModule module : installed.values()) {
+            if (ModuleCategories.UNCLASSIFIED_ID.equals(
+                    ModuleCategories.categoryOf(activity, module.id()))) {
+                result.add(module);
+            }
+        }
+        return result;
+    }
+
+    private List<String> repositoryKinds() {
+        List<String> kinds = new ArrayList<>();
+        if (demoApps != null) {
+            for (DemoApp app : demoApps) {
+                String kind = app.kind();
+                if (kind != null && !kind.isEmpty() && !kinds.contains(kind)) kinds.add(kind);
+            }
+        }
+        return kinds;
+    }
+
+    private void addRepositoryCategories(LinearLayout side) {
+        for (String item : repositoryKinds()) {
+            int count = repositoryCount(item);
+            View button = categoryButton(item + "  " + count, item.equals(category), view -> {
+                selectCategory(item);
+            }, null);
+            side.addView(button);
+            railButtons.put(item, button);
+            railOrder.add(item);
+        }
+    }
+
+    private int repositoryCount(String kind) {
+        int count = 0;
+        if (demoApps != null) {
+            for (DemoApp app : demoApps) {
+                String value = app.kind();
+                if (kind.equals(value == null || value.isEmpty() ? "其他" : value)) {
+                    count += 1;
+                }
+            }
+        }
+        return count;
+    }
+
+    private void addInstalledCategories(LinearLayout side, List<ModuleCategories.Category> categories) {
+        View home = categoryIconButton(
+                IconView.Type.SIGNPOST,
+                "首页",
+                ModuleCategories.DEFAULT_ID.equals(category),
+                0,
+                DEFAULT_SOFT,
+                view -> selectCategory(ModuleCategories.DEFAULT_ID),
+                view -> {
+                    showCategoryManager();
+                    return true;
+                }
+        );
+        side.addView(home);
+        railButtons.put(ModuleCategories.DEFAULT_ID, home);
+        railColors.put(ModuleCategories.DEFAULT_ID, DEFAULT_SOFT);
+        railOrder.add(ModuleCategories.DEFAULT_ID);
+        setRailIconColor(home, SIGNAL_RED);
+
+        int unclassifiedCount = unclassifiedModules().size();
+        if (unclassifiedCount > 0) {
+            View inbox = categoryIconButton(
+                    IconView.Type.FOLDER_QUERY,
+                    ModuleCategories.UNCLASSIFIED_NAME,
+                    ModuleCategories.UNCLASSIFIED_ID.equals(category),
+                    0,
+                    UNCLASSIFIED_SOFT,
+                    view -> selectCategory(ModuleCategories.UNCLASSIFIED_ID),
+                    view -> {
+                        showCategoryManager();
+                        return true;
+                    }
+            );
+            side.addView(inbox);
+            railButtons.put(ModuleCategories.UNCLASSIFIED_ID, inbox);
+            railColors.put(ModuleCategories.UNCLASSIFIED_ID, UNCLASSIFIED_SOFT);
+            railOrder.add(ModuleCategories.UNCLASSIFIED_ID);
+        }
+        if (!categories.isEmpty()) {
+            side.addView(categoryDivider());
+        }
+        for (ModuleCategories.Category item : categories) {
+            View button = categoryIconButton(
+                    CategoryIcons.typeOf(item.icon),
+                    item.name,
+                    item.id.equals(category),
+                    0,
+                    CategoryIcons.backgroundOf(item.icon),
+                    view -> selectCategory(item.id),
+                    view -> {
+                        showCategoryManager();
+                        return true;
+                    }
+            );
+            side.addView(button);
+            railButtons.put(item.id, button);
+            railColors.put(item.id, CategoryIcons.backgroundOf(item.icon));
+            railOrder.add(item.id);
+        }
+    }
+
+    private View categoryIconButton(IconView.Type type, String contentDescription,
+                                    boolean selected, int badge, int background,
+                                    View.OnClickListener click,
+                                    View.OnLongClickListener hold) {
+        FrameLayout button = new FrameLayout(activity);
+        button.setBackgroundColor(Color.TRANSPARENT);
+        button.setClickable(true);
+        button.setFocusable(true);
+        button.setContentDescription(contentDescription);
+
+        FrameLayout tile = new FrameLayout(activity);
+        tile.setBackground(UiKit.rounded(
+                activity, selected ? UiKit.SURFACE : background, 13f
+        ));
+        IconView icon = new IconView(activity).type(type);
+        icon.setColor(selected ? UiKit.INK : UiKit.MUTED);
+        tile.addView(icon, new FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER));
+        if (badge > 0) {
+            TextView count = UiKit.label(
+                    activity,
+                    String.valueOf(badge),
+                    8f,
+                    selected ? UiKit.ACCENT_DEEP : UiKit.MUTED
+            );
+            count.setIncludeFontPadding(false);
+            count.setPadding(dp(4), dp(1), dp(4), dp(2));
+            count.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 99f));
+            FrameLayout.LayoutParams countParams = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP | Gravity.END
+            );
+            countParams.topMargin = dp(1);
+            countParams.rightMargin = dp(1);
+            tile.addView(count, countParams);
+        }
+        button.addView(tile, new FrameLayout.LayoutParams(
+                dp(40), dp(40), Gravity.CENTER
+        ));
+        button.setOnClickListener(click);
+        if (hold != null) button.setOnLongClickListener(hold);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+        );
+        params.topMargin = dp(4);
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private View categoryDivider() {
+        FrameLayout wrap = new FrameLayout(activity);
+        View line = new View(activity);
+        line.setBackgroundColor(UiKit.LINE);
+        FrameLayout.LayoutParams lineParams = new FrameLayout.LayoutParams(
+                dp(22), dp(1), Gravity.CENTER_HORIZONTAL
+        );
+        lineParams.topMargin = dp(6);
+        lineParams.bottomMargin = dp(6);
+        wrap.addView(line, lineParams);
+        wrap.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(13)
+        ));
+        return wrap;
+    }
+
+    private View categoryButton(String label, boolean selected, View.OnClickListener click,
+                                View.OnLongClickListener hold) {
+        TextView button = UiKit.text(activity, label, 10.5f,
+                selected ? UiKit.INK : UiKit.MUTED, selected);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(4), 0, dp(4), 0);
+        button.setBackground(selected
+                ? UiKit.rounded(activity, UiKit.SURFACE, 11f)
+                : UiKit.rounded(activity, Color.TRANSPARENT, 11f));
+        button.setClickable(true);
+        button.setFocusable(true);
+        button.setOnClickListener(click);
+        if (hold != null) button.setOnLongClickListener(hold);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(36)
+        );
+        params.topMargin = dp(3);
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private void buildRepositoryList(LinearLayout list) {
+        int count = 0;
+        for (DemoApp app : demoApps == null ? new ArrayList<DemoApp>() : demoApps) {
+            if (!matches(app.kind(), app.name(), app.id(), app.description())) continue;
+            addSpacedRow(list, buildDemoRow(app));
+            count += 1;
+        }
+        if (count == 0) list.addView(emptyResult("没有匹配的模块�?));
+    }
+
+    private void buildInstalledList(LinearLayout list) {
+        boolean dashboard = ModuleCategories.DEFAULT_ID.equals(category);
+        if (dashboard && query.isEmpty()) {
+            List<InstalledModule> recent = recentModules();
+            if (!recent.isEmpty()) {
+                TextView title = UiKit.text(activity, "最�?, 11.5f, UiKit.INK, true);
+                title.setPadding(dp(2), dp(4), dp(2), dp(7));
+                list.addView(title);
+                list.addView(buildRecentGrid(recent));
+            }
+
+            TextView favoriteTitle = UiKit.text(activity, "收藏", 11.5f, UiKit.INK, true);
+            favoriteTitle.setPadding(dp(2), dp(15), dp(2), dp(7));
+            list.addView(favoriteTitle);
+            List<InstalledModule> favorites = favoriteModules();
+            if (favorites.isEmpty()) {
+                TextView empty = UiKit.text(activity, "暂无收藏", 11f, UiKit.FAINT, false);
+                empty.setGravity(Gravity.CENTER);
+                empty.setPadding(dp(2), dp(10), dp(2), dp(12));
+                list.addView(empty);
+            } else {
+                list.addView(buildRecentGrid(favorites));
+            }
+            if (recent.isEmpty() && favorites.isEmpty()) {
+                list.addView(emptyResult("还没有模块。点底部「安装」添加�?));
+            }
+            return;
+        }
+
+        List<InstalledModule> modules = new ArrayList<>(installed.values());
+        modules.sort(Comparator.comparing(InstalledModule::name));
+        List<InstalledModule> filtered = new ArrayList<>();
+        for (InstalledModule module : modules) {
+            String assigned = ModuleCategories.categoryOf(activity, module.id());
+            if (!query.isEmpty()) {
+                if (matchesName(module.name(), module.id(), module.description())) {
+                    filtered.add(module);
+                }
+            } else if (category.equals(assigned)) {
+                filtered.add(module);
+            }
+        }
+        if (query.isEmpty() && !filtered.isEmpty()
+                && ModuleCategories.isCustom(activity, category)) {
+            ModuleCategories.sort(activity, filtered, category);
+        }
+        if (filtered.isEmpty()) {
+            if (query.isEmpty() && ModuleCategories.isCustom(activity, category)) {
+                LinearLayout empty = new LinearLayout(activity);
+                empty.setOrientation(VERTICAL);
+                empty.setGravity(Gravity.CENTER);
+                empty.setPadding(dp(2), dp(34), dp(2), dp(20));
+                TextView copy = UiKit.text(activity, "这个分类还没有模块�?, 12f, UiKit.MUTED, false);
+                copy.setGravity(Gravity.CENTER);
+                empty.addView(copy);
+                TextView add = UiKit.secondaryButton(activity, "从已装模块添�?);
+                add.setOnClickListener(view -> showAddToCategoryDialog());
+                LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+                );
+                addParams.topMargin = dp(14);
+                empty.addView(add, addParams);
+                list.addView(empty);
+            } else {
+                list.addView(emptyResult("没有匹配的模块�?));
+            }
+            return;
+        }
+        list.addView(buildRecentGrid(filtered));
+    }
+
+    private boolean matches(String kind, String name, String id, String description) {
+        if (query.isEmpty() && (category == null || category.isEmpty()
+                || !category.equals(kind == null ? "其他" : kind))) {
+            return false;
+        }
+        return matchesName(name, id, description);
+    }
+
+    private boolean matchesName(String name, String id, String description) {
+        if (query.isEmpty()) return true;
+        String needle = query.toLowerCase(java.util.Locale.ROOT);
+        return (name != null && name.toLowerCase(java.util.Locale.ROOT).contains(needle))
+                || (id != null && id.toLowerCase(java.util.Locale.ROOT).contains(needle))
+                || (description != null && description.toLowerCase(java.util.Locale.ROOT).contains(needle));
+    }
+
+    private void showModuleMenu(InstalledModule module) {
+        SheetDialog sheet = new SheetDialog(activity);
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(VERTICAL);
+
+        LinearLayout header = new LinearLayout(activity);
+        header.setOrientation(HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(0, dp(6), 0, dp(14));
+
+        int accent = UiKit.parseColor(module.accent(), UiKit.ACCENT);
+        FrameLayout iconWrap = new FrameLayout(activity);
+        iconWrap.setBackground(UiKit.rounded(
+                activity, UiKit.blend(accent, Color.WHITE, 0.14f), 14f
+        ));
+        IconView icon = new IconView(activity).type(iconFor(glyphFor(module.id())));
+        icon.setColor(accent);
+        iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER));
+        header.addView(iconWrap, new LinearLayout.LayoutParams(dp(54), dp(54)));
+
+        LinearLayout copy = new LinearLayout(activity);
+        copy.setOrientation(VERTICAL);
+        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        copyParams.leftMargin = dp(13);
+        header.addView(copy, copyParams);
+        copy.addView(UiKit.text(activity, module.name(), 17f, UiKit.INK, true));
+        TextView desc = UiKit.text(activity, module.description(), 10.5f, UiKit.MUTED, false);
+        desc.setMaxLines(2);
+        desc.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        descParams.topMargin = dp(4);
+        copy.addView(desc, descParams);
+        root.addView(header, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        View divider = new View(activity);
+        divider.setBackgroundColor(UiKit.LINE);
+        root.addView(divider, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1)
+        ));
+
+        root.addView(menuRow("详情", false, () -> {
+            sheet.dismiss();
+            listener.onInstalledDetails(module);
+        }));
+        root.addView(menuRow("分类", false, () -> {
+            sheet.dismiss();
+            showCategoryPicker(module);
+        }));
+        if (ModuleCategories.isCustom(
+                activity, ModuleCategories.categoryOf(activity, module.id()))) {
+            root.addView(menuRow("排序", false, () -> {
+                sheet.dismiss();
+                showSortSheet(module);
+            }));
+        }
+        boolean favorited = FavoriteModules.contains(activity, module.id());
+        if (favorited) {
+            root.addView(menuRow("已收�?, false, () -> sheet.dismiss()));
+        } else {
+            root.addView(menuRow("收藏", false, () -> {
+                sheet.dismiss();
+                FavoriteModules.toggle(activity, module.id());
+                Toast.makeText(
+                        activity,
+                        "已收�?" + module.name(),
+                        Toast.LENGTH_SHORT
+                ).show();
+                rebuildBody();
+            }));
+        }
+        root.addView(menuRow("添加到桌�?, false, () -> {
+            sheet.dismiss();
+            listener.onAddToDesktop(module);
+        }));
+        root.addView(menuRow("卸载", true, () -> {
+            sheet.dismiss();
+            listener.onUninstall(module);
+        }));
+
+        TextView cancel = UiKit.secondaryButton(activity, "取消");
+        cancel.setOnClickListener(view -> sheet.dismiss());
+        sheet.setBody(root);
+        sheet.setFooter(cancel);
+        sheet.show();
+    }
+
+    private View menuRow(String label, boolean danger, Runnable action) {
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, 0, 0, 0);
+        row.setMinimumHeight(dp(56));
+        row.setClickable(true);
+        row.setFocusable(true);
+        row.setBackground(UiKit.ripple(activity, Color.TRANSPARENT, 0f));
+        TextView name = UiKit.text(activity, label, 14f,
+                danger ? UiKit.DANGER : UiKit.INK, true);
+        name.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(name, new LinearLayout.LayoutParams(
+                0, dp(56), 1f
+        ));
+        IconView chevron = new IconView(activity).type(IconView.Type.CHEVRON_RIGHT);
+        chevron.setColor(UiKit.FAINT);
+        row.addView(chevron, new LinearLayout.LayoutParams(dp(15), dp(15)));
+        row.setOnClickListener(view -> action.run());
+        return row;
+    }
+
+    private void showCategoryPicker(InstalledModule module) {
+        List<ModuleCategories.Category> categories = ModuleCategories.customList(activity);
+        if (categories.isEmpty()) {
+            Toast.makeText(activity, "先长按默认图标新建分�?, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String current = ModuleCategories.categoryOf(activity, module.id());
+        final String[] draft = {current};
+        SheetDialog sheet = new SheetDialog(activity);
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(VERTICAL);
+
+        int accent = UiKit.parseColor(module.accent(), UiKit.ACCENT);
+        LinearLayout header = new LinearLayout(activity);
+        header.setOrientation(HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(0, dp(4), 0, dp(14));
+
+        FrameLayout iconWrap = new FrameLayout(activity);
+        iconWrap.setBackground(UiKit.rounded(
+                activity, UiKit.blend(accent, Color.WHITE, 0.14f), 14f
+        ));
+        IconView icon = new IconView(activity).type(iconFor(glyphFor(module.id())));
+        icon.setColor(accent);
+        iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER));
+        header.addView(iconWrap, new LinearLayout.LayoutParams(dp(54), dp(54)));
+
+        LinearLayout copy = new LinearLayout(activity);
+        copy.setOrientation(VERTICAL);
+        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        copyParams.leftMargin = dp(13);
+        header.addView(copy, copyParams);
+        copy.addView(UiKit.text(activity, module.name(), 17f, UiKit.INK, true));
+        TextView desc = UiKit.text(activity, module.description(), 10.5f, UiKit.MUTED, false);
+        desc.setMaxLines(1);
+        desc.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        descParams.topMargin = dp(4);
+        copy.addView(desc, descParams);
+        root.addView(header, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        View divider = new View(activity);
+        divider.setBackgroundColor(UiKit.LINE);
+        root.addView(divider, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1)
+        ));
+
+        TextView section = UiKit.text(activity, "改为分类", 13f, UiKit.MUTED, true);
+        LinearLayout.LayoutParams sectionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        sectionParams.topMargin = dp(16);
+        sectionParams.bottomMargin = dp(10);
+        root.addView(section, sectionParams);
+
+        List<TextView> chips = new ArrayList<>();
+        LinearLayout grid = new LinearLayout(activity);
+        grid.setOrientation(VERTICAL);
+        for (int start = 0; start < categories.size(); start += 3) {
+            LinearLayout row = new LinearLayout(activity);
+            row.setOrientation(HORIZONTAL);
+            for (int offset = 0; offset < 3; offset += 1) {
+                int index = start + offset;
+                if (index < categories.size()) {
+                    ModuleCategories.Category item = categories.get(index);
+                    TextView chip = categoryChip(item.name);
+                    chips.add(chip);
+                    chip.setTag(item.id);
+                    chip.setOnClickListener(view -> {
+                        draft[0] = item.id;
+                        refreshCategoryChips(chips, draft[0]);
+                    });
+                    LinearLayout.LayoutParams chipParams = new LinearLayout.LayoutParams(
+                            0, dp(44), 1f
+                    );
+                    if (offset > 0) chipParams.leftMargin = dp(8);
+                    row.addView(chip, chipParams);
+                } else {
+                    LinearLayout.LayoutParams spacerParams = new LinearLayout.LayoutParams(
+                            0, dp(44), 1f
+                    );
+                    if (offset > 0) spacerParams.leftMargin = dp(8);
+                    row.addView(new View(activity), spacerParams);
+                }
+            }
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            if (start > 0) rowParams.topMargin = dp(8);
+            grid.addView(row, rowParams);
+        }
+        root.addView(grid, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        refreshCategoryChips(chips, draft[0]);
+
+        LinearLayout footer = new LinearLayout(activity);
+        footer.setOrientation(HORIZONTAL);
+        TextView cancel = UiKit.secondaryButton(activity, "取消");
+        cancel.setOnClickListener(view -> sheet.dismiss());
+        footer.addView(cancel, new LinearLayout.LayoutParams(0, dp(46), 1f));
+
+        TextView save = UiKit.text(activity, "保存", 14f, Color.WHITE, true);
+        save.setGravity(Gravity.CENTER);
+        save.setBackground(UiKit.ripple(activity, 0xFF3A2C20, 14f));
+        save.setClickable(true);
+        save.setFocusable(true);
+        save.setMinHeight(dp(46));
+        save.setOnClickListener(view -> {
+            if (!draft[0].equals(current)) {
+                ModuleCategories.setCategory(activity, module.id(), draft[0]);
+                ModuleCategories.moveToFront(activity, module.id(), draft[0]);
+                rebuildBody();
+            }
+            sheet.dismiss();
+        });
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        saveParams.leftMargin = dp(8);
+        footer.addView(save, saveParams);
+
+        sheet.setBody(root);
+        sheet.setFooter(footer);
+        sheet.show();
+    }
+
+    private void showSortSheet(InstalledModule focus) {
+        if (!ModuleCategories.isCustom(activity, category)) {
+            Toast.makeText(activity, "只有自定义分类可以排�?, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        List<InstalledModule> order = modulesInCurrentCategory();
+        if (order.isEmpty()) {
+            Toast.makeText(activity, "当前分类没有可排序的模块", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ModuleCategories.sort(activity, order, category);
+        final String[] selected = {focus != null && installed.containsKey(focus.id())
+                ? focus.id()
+                : order.get(0).id()};
+        SheetDialog sheet = new SheetDialog(activity);
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(VERTICAL);
+
+        LinearLayout titleRow = new LinearLayout(activity);
+        titleRow.setOrientation(HORIZONTAL);
+        titleRow.setGravity(Gravity.BOTTOM);
+        TextView title = UiKit.text(activity, "应用排序", 20f, UiKit.INK, true);
+        titleRow.addView(title);
+        String categoryLabel = ModuleCategories.DEFAULT_ID.equals(category)
+                ? ModuleCategories.DEFAULT_NAME
+                : ModuleCategories.nameOf(activity, category);
+        TextView scope = UiKit.text(activity, " · " + categoryLabel, 12.5f, UiKit.MUTED, false);
+        LinearLayout.LayoutParams scopeParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        scopeParams.leftMargin = dp(4);
+        titleRow.addView(scope, scopeParams);
+        root.addView(titleRow, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        View divider = new View(activity);
+        divider.setBackgroundColor(UiKit.LINE);
+        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1)
+        );
+        dividerParams.topMargin = dp(12);
+        dividerParams.bottomMargin = dp(6);
+        root.addView(divider, dividerParams);
+
+        LinearLayout rows = new LinearLayout(activity);
+        rows.setOrientation(VERTICAL);
+        root.addView(rows, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        renderSortRows(rows, order, selected);
+
+        TextView close = UiKit.text(activity, "关闭", 14f, Color.WHITE, true);
+        close.setGravity(Gravity.CENTER);
+        close.setBackground(UiKit.ripple(activity, 0xFF3A2C20, 14f));
+        close.setClickable(true);
+        close.setFocusable(true);
+        close.setMinHeight(dp(46));
+        close.setOnClickListener(view -> {
+            sheet.dismiss();
+            rebuildBody();
+        });
+        sheet.setBody(root);
+        sheet.setFooter(close);
+        sheet.show();
+    }
+
+    private List<InstalledModule> modulesInCurrentCategory() {
+        List<InstalledModule> result = new ArrayList<>();
+        if (!ModuleCategories.isCustom(activity, category)) return result;
+        for (InstalledModule module : installed.values()) {
+            if (category.equals(ModuleCategories.categoryOf(activity, module.id()))) {
+                result.add(module);
+            }
+        }
+        result.sort(Comparator.comparing(InstalledModule::name));
+        return result;
+    }
+
+    private void renderSortRows(LinearLayout host, List<InstalledModule> order, String[] selected) {
+        host.removeAllViews();
+        for (int index = 0; index < order.size(); index += 1) {
+            InstalledModule module = order.get(index);
+            int accent = UiKit.parseColor(module.accent(), UiKit.ACCENT);
+            boolean isSelected = module.id().equals(selected[0]);
+
+            LinearLayout row = new LinearLayout(activity);
+            row.setOrientation(HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(10), dp(7), dp(6), dp(7));
+            row.setBackground(isSelected
+                    ? UiKit.rounded(activity, UiKit.SURFACE_SOFT, 16f)
+                    : UiKit.rounded(activity, Color.TRANSPARENT, 16f));
+            row.setOnClickListener(view -> {
+                selected[0] = module.id();
+                renderSortRows(host, order, selected);
+            });
+
+            FrameLayout iconWrap = new FrameLayout(activity);
+            iconWrap.setBackground(UiKit.rounded(
+                    activity, UiKit.blend(accent, Color.WHITE, 0.14f), 12f
+            ));
+            IconView icon = new IconView(activity).type(iconFor(glyphFor(module.id())));
+            icon.setColor(accent);
+            iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER));
+            row.addView(iconWrap, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+            TextView name = UiKit.text(activity, module.name(), 13f, UiKit.INK, true);
+            name.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
+                    0, dp(40), 1f
+            );
+            nameParams.leftMargin = dp(10);
+            row.addView(name, nameParams);
+
+            final int position = index;
+            row.addView(sortTopControl(position > 0, () -> {
+                if (position <= 0) return;
+                selected[0] = module.id();
+                order.remove(position);
+                order.add(0, module);
+                saveSortOrder(order);
+                renderSortRows(host, order, selected);
+            }), new LinearLayout.LayoutParams(dp(36), dp(34)));
+            LinearLayout.LayoutParams upParams = new LinearLayout.LayoutParams(dp(36), dp(34));
+            upParams.leftMargin = dp(6);
+            row.addView(sortControl(false, position > 0, () -> {
+                if (position <= 0) return;
+                selected[0] = module.id();
+                InstalledModule previous = order.remove(position - 1);
+                order.add(position, previous);
+                saveSortOrder(order);
+                renderSortRows(host, order, selected);
+            }), upParams);
+            LinearLayout.LayoutParams downParams = new LinearLayout.LayoutParams(dp(36), dp(34));
+            downParams.leftMargin = dp(6);
+            row.addView(sortControl(true, position < order.size() - 1, () -> {
+                if (position >= order.size() - 1) return;
+                selected[0] = module.id();
+                InstalledModule next = order.remove(position + 1);
+                order.add(position, next);
+                saveSortOrder(order);
+                renderSortRows(host, order, selected);
+            }), downParams);
+
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            if (index > 0) rowParams.topMargin = dp(6);
+            host.addView(row, rowParams);
+        }
+    }
+
+    private static final class SortTopIcon extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        SortTopIcon(Context context, int color) {
+            super(context);
+            paint.setColor(color);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float scale = Math.min(getWidth(), getHeight()) / 24f;
+            canvas.save();
+            canvas.scale(scale, scale);
+            paint.setStrokeWidth(2.2f);
+            canvas.drawLine(12f, 6f, 12f, 19.5f, paint);
+            canvas.drawLine(12f, 6f, 6f, 12f, paint);
+            canvas.drawLine(12f, 6f, 18f, 12f, paint);
+            paint.setStrokeWidth(2f);
+            canvas.drawLine(4.5f, 5f, 19.5f, 5f, paint);
+            canvas.restore();
+        }
+    }
+
+    private View sortTopControl(boolean enabled, Runnable action) {
+        int color = enabled ? 0xFF52665A : 0xFFD2C8BA;
+        LinearLayout control = new LinearLayout(activity);
+        control.setOrientation(VERTICAL);
+        control.setGravity(Gravity.CENTER);
+        control.setBackground(UiKit.rounded(
+                activity, enabled ? 0xFFE5F0E8 : 0xFFF1ECE4, 10f
+        ));
+        control.setClickable(enabled);
+        control.setEnabled(enabled);
+
+        SortTopIcon icon = new SortTopIcon(activity, color);
+        control.addView(icon, new LinearLayout.LayoutParams(dp(18), dp(18)));
+        if (enabled) control.setOnClickListener(view -> action.run());
+        return control;
+    }
+
+    private View sortControl(boolean down, boolean enabled, Runnable action) {
+        FrameLayout control = new FrameLayout(activity);
+        control.setClickable(enabled);
+        control.setEnabled(enabled);
+        control.setBackground(UiKit.rounded(
+                activity, enabled ? 0xFFE5F0E8 : 0xFFF1ECE4, 10f
+        ));
+        SortArrowIcon icon = new SortArrowIcon(
+                activity, enabled ? 0xFF52665A : 0xFFD2C8BA, down
+        );
+        control.addView(icon, new FrameLayout.LayoutParams(
+                dp(18), dp(18), Gravity.CENTER
+        ));
+        if (enabled) control.setOnClickListener(view -> action.run());
+        return control;
+    }
+
+    private static final class SortArrowIcon extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final boolean down;
+
+        SortArrowIcon(Context context, int color, boolean down) {
+            super(context);
+            this.down = down;
+            paint.setColor(color);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setStrokeWidth(2.2f);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float scale = Math.min(getWidth(), getHeight()) / 24f;
+            canvas.save();
+            canvas.scale(scale, scale);
+            if (down) {
+                canvas.drawLine(12f, 18.5f, 12f, 5f, paint);
+                canvas.drawLine(12f, 18.5f, 6f, 12.5f, paint);
+                canvas.drawLine(12f, 18.5f, 18f, 12.5f, paint);
+            } else {
+                canvas.drawLine(12f, 5.5f, 12f, 19f, paint);
+                canvas.drawLine(12f, 5.5f, 6f, 11.5f, paint);
+                canvas.drawLine(12f, 5.5f, 18f, 11.5f, paint);
+            }
+            canvas.restore();
+        }
+    }
+
+    private void saveSortOrder(List<InstalledModule> order) {
+        List<String> ids = new ArrayList<>();
+        for (InstalledModule module : order) ids.add(module.id());
+        ModuleCategories.saveOrder(activity, category, ids);
+    }
+
+    private TextView categoryChip(String label) {
+        TextView chip = UiKit.text(activity, label, 13f, UiKit.INK, true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setClickable(true);
+        chip.setFocusable(true);
+        chip.setPadding(dp(6), 0, dp(6), 0);
+        return chip;
+    }
+
+    private void refreshCategoryChips(List<TextView> chips, String selectedId) {
+        for (TextView chip : chips) {
+            boolean selected = selectedId.equals(chip.getTag());
+            chip.setTextColor(selected ? Color.WHITE : UiKit.INK);
+            chip.setBackground(selected
+                    ? UiKit.rounded(activity, 0xFF3A2C20, 14f)
+                    : UiKit.rounded(activity, UiKit.SURFACE_SOFT, 14f));
+        }
+    }
+
+    private void showAddToCategoryDialog() {
+        List<InstalledModule> candidates = new ArrayList<>();
+        for (InstalledModule module : installed.values()) {
+            if (!category.equals(ModuleCategories.categoryOf(activity, module.id()))) {
+                candidates.add(module);
+            }
+        }
+        if (candidates.isEmpty()) {
+            Toast.makeText(activity, "没有可归类的模块", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        candidates.sort(Comparator.comparing(InstalledModule::name));
+        String[] labels = new String[candidates.size()];
+        for (int i = 0; i < candidates.size(); i += 1) labels[i] = candidates.get(i).name();
+        new AlertDialog.Builder(activity)
+                .setTitle("添加模块到分�?)
+                .setItems(labels, (dialog, which) -> {
+                    InstalledModule module = candidates.get(which);
+                    ModuleCategories.setCategory(activity, module.id(), category);
+                    ModuleCategories.moveToFront(activity, module.id(), category);
+                    rebuildBody();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void showConfirmSheet(String title, String message, String confirmLabel, Runnable action) {
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(VERTICAL);
+        root.setPadding(dp(22), dp(20), dp(22), dp(24));
+        root.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 24f));
+        root.setClipChildren(false);
+        root.setClipToPadding(false);
+        root.addView(UiKit.text(activity, title, 18f, UiKit.INK, true));
+        TextView copy = UiKit.text(activity, message, 11f, UiKit.MUTED, false);
+        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        copyParams.topMargin = dp(8);
+        root.addView(copy, copyParams);
+
+        final Dialog[] holder = new Dialog[1];
+        LinearLayout buttons = new LinearLayout(activity);
+        buttons.setOrientation(HORIZONTAL);
+        LinearLayout.LayoutParams buttonsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(46)
+        );
+        buttonsParams.topMargin = dp(18);
+        root.addView(buttons, buttonsParams);
+
+        TextView cancel = UiKit.secondaryButton(activity, "取消");
+        cancel.setOnClickListener(view -> holder[0].dismiss());
+        buttons.addView(cancel, new LinearLayout.LayoutParams(0, dp(46), 1f));
+
+        TextView confirm = UiKit.primaryButton(activity, confirmLabel);
+        LinearLayout.LayoutParams confirmParams = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        confirmParams.leftMargin = dp(8);
+        confirm.setOnClickListener(view -> {
+            holder[0].dismiss();
+            action.run();
+        });
+        buttons.addView(confirm, confirmParams);
+
+        root.addView(new View(activity), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(24)
+        ));
+
+        holder[0] = centerDialog(root, false);
+    }
+
+    private Dialog centerDialog(LinearLayout content, boolean aboveKeyboard) {
+        Dialog dialog = new Dialog(activity);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setContentView(content);
+        dialog.setCanceledOnTouchOutside(true);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setGravity(aboveKeyboard ? Gravity.BOTTOM : Gravity.CENTER);
+            window.setDimAmount(0.38f);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+                    | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+        }
+        dialog.show();
+        if (window != null) {
+            int width = (int) (activity.getResources().getDisplayMetrics().widthPixels * 0.86f);
+            WindowManager.LayoutParams params = window.getAttributes();
+            params.gravity = aboveKeyboard ? Gravity.BOTTOM : Gravity.CENTER;
+            params.y = aboveKeyboard ? dp(12) : 0;
+            params.width = width;
+            params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+                    | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE;
+            window.setAttributes(params);
+            window.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+            if (aboveKeyboard) {
+                View decor = window.getDecorView();
+                decor.setOnApplyWindowInsetsListener((view, insets) -> {
+                    int ime;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        ime = insets.getInsets(WindowInsets.Type.ime()).bottom;
+                    } else {
+                        ime = insets.getSystemWindowInsetBottom();
+                    }
+                    WindowManager.LayoutParams attrs = window.getAttributes();
+                    attrs.y = ime + dp(12);
+                    window.setAttributes(attrs);
+                    return insets;
+                });
+                decor.requestApplyInsets();
+            }
+        }
+        return dialog;
+    }
+
+    private void showCategoryManager() {
+        List<ModuleCategories.Category> categories = ModuleCategories.customList(activity);
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(VERTICAL);
+        root.addView(UiKit.text(activity, "分类管理", 20f, UiKit.INK, true));
+        TextView hint = UiKit.text(activity, "自定义分类点 �?上移", 9f, UiKit.FAINT, false);
+        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        hintParams.topMargin = dp(4);
+        root.addView(hint, hintParams);
+
+        ScrollView scroll = new ScrollView(activity);
+        scroll.setVerticalScrollBarEnabled(false);
+        LinearLayout rows = new LinearLayout(activity);
+        rows.setOrientation(VERTICAL);
+        rows.setPadding(0, dp(8), 0, dp(4));
+        scroll.addView(rows, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        int rowsHeight = Math.min(
+                dp(320), dp(18) + Math.max(1, categories.size() + 1) * dp(46)
+        );
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, rowsHeight
+        ));
+
+        final SheetDialog[] holder = new SheetDialog[1];
+        final List<ModuleCategories.Category> draft = new ArrayList<>(categories);
+        final boolean[] orderChanged = {false};
+        final TextView saveButton = UiKit.primaryButton(activity, "关闭");
+        rows.addView(builtinCategoryRow(), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        if (categories.isEmpty()) {
+            TextView empty = UiKit.text(activity, "还没有分类。点下方新建分类�?, 11f, UiKit.FAINT, false);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(dp(4), dp(12), dp(4), dp(12));
+            rows.addView(empty);
+        }
+        for (ModuleCategories.Category item : categories) {
+            LinearLayout row = new LinearLayout(activity);
+            row.setOrientation(HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(4), dp(5), dp(2), dp(5));
+            row.setTag(item.id);
+
+            FrameLayout iconButton = new FrameLayout(activity);
+            iconButton.setBackground(UiKit.rounded(
+                    activity, CategoryIcons.backgroundOf(item.icon), 10f
+            ));
+            iconButton.setClickable(true);
+            iconButton.setFocusable(true);
+            iconButton.setContentDescription("选择图标");
+            IconView categoryIcon = new IconView(activity)
+                    .type(CategoryIcons.typeOf(item.icon));
+            categoryIcon.setColor(UiKit.INK);
+            iconButton.addView(categoryIcon, new FrameLayout.LayoutParams(
+                    dp(19), dp(19), Gravity.CENTER
+            ));
+            iconButton.setOnClickListener(view -> showCategoryIconPicker(item));
+            LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(34), dp(34));
+            iconParams.rightMargin = dp(8);
+            row.addView(iconButton, iconParams);
+
+            TextView name = UiKit.text(activity, item.name, 12f, UiKit.INK, true);
+            name.setGravity(Gravity.CENTER_VERTICAL);
+            name.setPadding(dp(2), 0, 0, 0);
+            row.addView(name, new LinearLayout.LayoutParams(
+                    0, dp(34), 1f
+            ));
+
+            EditText renameInput = inlineInput("最�?4 个汉�?);
+            renameInput.setVisibility(View.GONE);
+            row.addView(renameInput, new LinearLayout.LayoutParams(
+                    0, dp(34), 1f
+            ));
+
+            LinearLayout actions = new LinearLayout(activity);
+            actions.setOrientation(HORIZONTAL);
+            actions.setGravity(Gravity.CENTER_VERTICAL);
+
+            LinearLayout editActions = new LinearLayout(activity);
+            editActions.setOrientation(HORIZONTAL);
+            editActions.setGravity(Gravity.CENTER_VERTICAL);
+            editActions.setVisibility(View.GONE);
+            TextView saveRename = managerAction("保存", view -> finishRowRename(
+                    name, renameInput, actions, editActions, item
+            ));
+            saveRename.setTextColor(UiKit.ACCENT_DEEP);
+            editActions.addView(saveRename, new LinearLayout.LayoutParams(dp(44), dp(34)));
+            TextView cancelRename = managerAction("取消", view -> endRowEdit(
+                    name, renameInput, actions, editActions
+            ));
+            LinearLayout.LayoutParams cancelRenameParams =
+                    new LinearLayout.LayoutParams(dp(44), dp(34));
+            cancelRenameParams.leftMargin = dp(6);
+            editActions.addView(cancelRename, cancelRenameParams);
+
+            actions.addView(managerAction("改名", view -> {
+                highlightCategoryRow(rows, item.id);
+                startRowEdit(name, renameInput, actions, editActions, item);
+            }), new LinearLayout.LayoutParams(dp(52), dp(34)));
+            TextView delete = managerAction("删除", view -> deleteCategory(item, holder[0]));
+            LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(dp(52), dp(34));
+            deleteParams.leftMargin = dp(8);
+            actions.addView(delete, deleteParams);
+            TextView up = UiKit.text(activity, "�?, 17f, UiKit.MUTED, true);
+            up.setGravity(Gravity.CENTER);
+            up.setContentDescription("上移分类");
+            up.setPadding(dp(6), 0, dp(2), 0);
+            up.setOnClickListener(view -> {
+                highlightCategoryRow(rows, item.id);
+                int index = -1;
+                for (int i = 0; i < draft.size(); i += 1) {
+                    if (draft.get(i).id.equals(item.id)) index = i;
+                }
+                if (index <= 0) {
+                    Toast.makeText(activity, "已经在最�?, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                ModuleCategories.Category moved = draft.remove(index);
+                draft.add(index - 1, moved);
+                rows.removeView(row);
+                rows.addView(row, index - 1);
+                highlightCategoryRow(rows, item.id);
+                orderChanged[0] = true;
+                saveButton.setText("保存");
+            });
+            LinearLayout.LayoutParams upParams = new LinearLayout.LayoutParams(dp(36), dp(34));
+            upParams.leftMargin = dp(8);
+            actions.addView(up, upParams);
+            row.addView(actions, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(34)
+            ));
+            row.addView(editActions, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(34)
+            ));
+            rows.addView(row, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ));
+        }
+
+        LinearLayout addHost = new LinearLayout(activity);
+        addHost.setOrientation(VERTICAL);
+
+        TextView add = UiKit.text(activity, "�?新建分类", 11f, UiKit.ACCENT_DEEP, true);
+        add.setPadding(dp(4), dp(12), dp(4), dp(10));
+        addHost.addView(add);
+
+        LinearLayout addRow = new LinearLayout(activity);
+        addRow.setOrientation(HORIZONTAL);
+        addRow.setGravity(Gravity.CENTER_VERTICAL);
+        addRow.setPadding(dp(4), dp(8), dp(2), dp(4));
+        addRow.setVisibility(View.GONE);
+        EditText newInput = inlineInput("新分类名�?-4 �?);
+        addRow.addView(newInput, new LinearLayout.LayoutParams(0, dp(34), 1f));
+
+        TextView create = managerAction("创建", view -> {
+            if (ModuleCategories.add(activity, newInput.getText().toString()) == null) {
+                Toast.makeText(activity, "名称需 1-4 字且不能重名，分类最�?10 �?,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            category = ModuleCategories.DEFAULT_ID;
+            hideKeyboard(newInput);
+            if (holder[0] != null) holder[0].dismiss();
+            rebuildBody();
+            showCategoryManager();
+        });
+        create.setTextColor(UiKit.ACCENT_DEEP);
+        LinearLayout.LayoutParams createParams = new LinearLayout.LayoutParams(dp(44), dp(34));
+        createParams.leftMargin = dp(8);
+        addRow.addView(create, createParams);
+
+        TextView cancelAdd = managerAction("取消", view -> {
+            newInput.setText("");
+            addRow.setVisibility(View.GONE);
+            add.setVisibility(View.VISIBLE);
+            hideKeyboard(newInput);
+        });
+        LinearLayout.LayoutParams cancelAddParams = new LinearLayout.LayoutParams(dp(44), dp(34));
+        cancelAddParams.leftMargin = dp(6);
+        addRow.addView(cancelAdd, cancelAddParams);
+        addHost.addView(addRow);
+
+        add.setOnClickListener(view -> {
+            add.setVisibility(View.GONE);
+            addRow.setVisibility(View.VISIBLE);
+            newInput.setText("");
+            newInput.requestFocus();
+            newInput.postDelayed(() -> showKeyboard(newInput), 80);
+        });
+        root.addView(addHost);
+        saveButton.setOnClickListener(view -> {
+            if (orderChanged[0]) {
+                List<String> ids = new ArrayList<>();
+                for (ModuleCategories.Category item : draft) {
+                    if (!ModuleCategories.DEFAULT_ID.equals(item.id)) ids.add(item.id);
+                }
+                ModuleCategories.reorder(activity, ids);
+                rebuildBody();
+            }
+            holder[0].dismiss();
+        });
+
+        holder[0] = new SheetDialog(activity);
+        holder[0].setBody(root);
+        holder[0].setFooter(saveButton);
+        if (holder[0].getWindow() != null) {
+            holder[0].getWindow().addFlags(
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            );
+            holder[0].getWindow().setSoftInputMode(
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
+                            | WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
+            );
+        }
+        holder[0].show();
+        if (holder[0].getWindow() != null) {
+            WindowManager.LayoutParams params = holder[0].getWindow().getAttributes();
+            params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
+                    | WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN;
+            holder[0].getWindow().setAttributes(params);
+        }
+    }
+
+    private void highlightCategoryRow(LinearLayout rows, String categoryId) {
+        for (int i = 0; i < rows.getChildCount(); i += 1) {
+            View child = rows.getChildAt(i);
+            boolean selected = categoryId != null && categoryId.equals(child.getTag());
+            child.setSelected(selected);
+            child.setBackground(selected
+                    ? UiKit.rounded(activity, UiKit.SURFACE_SOFT, 14f)
+                    : UiKit.rounded(activity, Color.TRANSPARENT, 14f));
+        }
+    }
+
+    private EditText inlineInput(String hint) {
+        EditText input = new EditText(activity);
+        input.setSingleLine(true);
+        input.setTextSize(12f);
+        input.setTextColor(UiKit.INK);
+        input.setHint(hint);
+        input.setHintTextColor(UiKit.FAINT);
+        input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
+        input.setBackground(UiKit.rounded(activity, UiKit.SURFACE_SOFT, 11f));
+        input.setPadding(dp(10), 0, dp(10), 0);
+        return input;
+    }
+
+    private void startRowEdit(TextView name, EditText input, LinearLayout actions,
+                              LinearLayout editActions, ModuleCategories.Category item) {
+        input.setText(item.name);
+        name.setVisibility(View.GONE);
+        actions.setVisibility(View.GONE);
+        input.setVisibility(View.VISIBLE);
+        editActions.setVisibility(View.VISIBLE);
+        input.requestFocus();
+        input.setSelection(input.getText().length());
+        input.postDelayed(() -> showKeyboard(input), 80);
+    }
+
+    private void endRowEdit(TextView name, EditText input, LinearLayout actions,
+                            LinearLayout editActions) {
+        name.setVisibility(View.VISIBLE);
+        actions.setVisibility(View.VISIBLE);
+        input.setVisibility(View.GONE);
+        editActions.setVisibility(View.GONE);
+        hideKeyboard(input);
+    }
+
+    private void finishRowRename(TextView name, EditText input, LinearLayout actions,
+                                 LinearLayout editActions, ModuleCategories.Category item) {
+        String value = input.getText().toString().trim();
+        endRowEdit(name, input, actions, editActions);
+        if (!ModuleCategories.rename(activity, item.id, value)) {
+            Toast.makeText(activity, "名称需 1-4 字且不能重名", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        name.setText(value);
+        rebuildBody();
+    }
+
+    private void showKeyboard(EditText input) {
+        input.requestFocus();
+        InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+    }
+
+    private void hideKeyboard(View view) {
+        InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+    }
+
+    /** Built-in categories share one read-only row; they cannot be changed. */
+    private View builtinCategoryRow() {
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(4), dp(5), dp(2), dp(5));
+
+        row.addView(builtinCategoryItem(
+                IconView.Type.SIGNPOST, DEFAULT_SOFT, ModuleCategories.DEFAULT_NAME
+        ));
+        LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(dp(8), dp(34));
+        row.addView(new View(activity), gap);
+        row.addView(builtinCategoryItem(
+                IconView.Type.FOLDER_QUERY, UNCLASSIFIED_SOFT, ModuleCategories.UNCLASSIFIED_NAME
+        ));
+        row.addView(new View(activity), new LinearLayout.LayoutParams(0, dp(34), 1f));
+
+        TextView note = UiKit.text(activity, "系统内置 不可更改", 9.5f, UiKit.FAINT, false);
+        note.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(note, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(34)
+        ));
+        return row;
+    }
+
+    private View builtinCategoryItem(IconView.Type type, int background, String name) {
+        LinearLayout item = new LinearLayout(activity);
+        item.setOrientation(HORIZONTAL);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setAlpha(0.4f);
+
+        FrameLayout iconWrap = new FrameLayout(activity);
+        iconWrap.setBackground(UiKit.rounded(activity, background, 10f));
+        IconView icon = new IconView(activity).type(type);
+        icon.setColor(UiKit.MUTED);
+        iconWrap.addView(icon, new FrameLayout.LayoutParams(
+                dp(19), dp(19), Gravity.CENTER
+        ));
+        item.addView(iconWrap, new LinearLayout.LayoutParams(dp(34), dp(34)));
+
+        TextView label = UiKit.text(activity, name, 12f, UiKit.MUTED, true);
+        label.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(34)
+        );
+        labelParams.leftMargin = dp(8);
+        item.addView(label, labelParams);
+        return item;
+    }
+
+    private TextView managerAction(String label, View.OnClickListener click) {
+        TextView action = UiKit.text(activity, label, 10f, UiKit.MUTED, true);
+        action.setGravity(Gravity.CENTER);
+        action.setPadding(dp(4), dp(6), dp(4), dp(6));
+        action.setOnClickListener(click);
+        return action;
+    }
+
+    private void showCategoryIconPicker(ModuleCategories.Category item) {
+        SheetDialog sheet = new SheetDialog(activity);
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(VERTICAL);
+        root.addView(UiKit.text(activity, "选择图标", 20f, UiKit.INK, true));
+        TextView hint = UiKit.text(activity, item.name, 10f, UiKit.MUTED, false);
+        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        hintParams.topMargin = dp(4);
+        hintParams.bottomMargin = dp(14);
+        root.addView(hint, hintParams);
+
+        int columns = 5;
+        LinearLayout grid = new LinearLayout(activity);
+        grid.setOrientation(VERTICAL);
+        for (int start = 0; start < CategoryIcons.KEYS.length; start += columns) {
+            LinearLayout row = new LinearLayout(activity);
+            row.setOrientation(HORIZONTAL);
+            for (int offset = 0; offset < columns; offset += 1) {
+                int index = start + offset;
+                if (index < CategoryIcons.KEYS.length) {
+                    String key = CategoryIcons.KEYS[index];
+                    boolean selected = key.equals(item.icon);
+                    FrameLayout cell = new FrameLayout(activity);
+                    cell.setBackground(selected
+                            ? UiKit.rounded(activity, UiKit.SURFACE_SOFT, 14f)
+                            : UiKit.rounded(activity, Color.TRANSPARENT, 14f));
+                    cell.setClickable(true);
+                    cell.setFocusable(true);
+                    cell.setContentDescription(key);
+                    IconView icon = new IconView(activity).type(CategoryIcons.typeOf(key));
+                    icon.setColor(selected ? UiKit.INK : UiKit.MUTED);
+                    cell.addView(icon, new FrameLayout.LayoutParams(
+                            dp(22), dp(22), Gravity.CENTER
+                    ));
+                    cell.setOnClickListener(view -> {
+                        ModuleCategories.setIcon(activity, item.id, key);
+                        sheet.dismiss();
+                        showCategoryManager();
+                    });
+                    LinearLayout.LayoutParams cellParams = new LinearLayout.LayoutParams(
+                            0, dp(48), 1f
+                    );
+                    if (offset > 0) cellParams.leftMargin = dp(6);
+                    row.addView(cell, cellParams);
+                } else {
+                    LinearLayout.LayoutParams spacerParams = new LinearLayout.LayoutParams(
+                            0, dp(48), 1f
+                    );
+                    if (offset > 0) spacerParams.leftMargin = dp(6);
+                    row.addView(new View(activity), spacerParams);
+                }
+            }
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            if (start > 0) rowParams.topMargin = dp(6);
+            grid.addView(row, rowParams);
+        }
+        root.addView(grid, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView cancel = UiKit.secondaryButton(activity, "取消");
+        cancel.setOnClickListener(view -> sheet.dismiss());
+        sheet.setBody(root);
+        sheet.setFooter(cancel);
+        sheet.show();
+    }
+
+    private void deleteCategory(ModuleCategories.Category item, SheetDialog manager) {
+        int count = 0;
+        for (InstalledModule module : installed.values()) {
+            if (item.id.equals(ModuleCategories.categoryOf(activity, module.id()))) count += 1;
+        }
+        if (manager != null) manager.dismiss();
+        showConfirmSheet(
+                "删除�? + item.name + "」？",
+                count == 0 ? "该分类下没有应用�? : "其中 " + count + " 个应用会回到"
+                        + ModuleCategories.UNCLASSIFIED_NAME + "�?,
+                "删除",
+                () -> {
+                    ModuleCategories.delete(activity, item.id);
+                    category = ModuleCategories.DEFAULT_ID;
+                    rebuildBody();
+                }
+        );
+    }
+
+    private View emptyResult(String text) {
+        TextView empty = UiKit.text(activity, text, 12f, UiKit.MUTED, false);
+        empty.setGravity(Gravity.CENTER);
+        empty.setPadding(dp(2), dp(28), dp(2), dp(20));
+        return empty;
+    }
+
+    private void buildInstalled(LinearLayout content) {
+        TextView head = UiKit.label(activity, "已安�?· " + installed.size(), 9f, UiKit.MUTED);
+        head.setPadding(dp(2), dp(2), dp(2), dp(8));
+        content.addView(head);
+        if (installed.isEmpty()) {
+            TextView empty = UiKit.text(activity, "还没有安装模块�?, 12f, UiKit.MUTED, false);
+            empty.setPadding(dp(2), dp(18), dp(2), dp(18));
+            content.addView(empty);
+            return;
+        }
+        List<InstalledModule> modules = new ArrayList<>(installed.values());
+        modules.sort(Comparator.comparing(InstalledModule::name));
+        for (InstalledModule module : modules) {
+            addSpacedRow(content, buildInstalledRow(module));
+        }
+    }
+
+    private void addSpacedRow(LinearLayout content, View row) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.topMargin = dp(8);
+        content.addView(row, params);
+    }
+
+    private List<InstalledModule> recentModules() {
+        List<InstalledModule> modules = new ArrayList<>();
+        for (InstalledModule module : installed.values()) {
+            if (ModuleUsage.lastOpened(activity, module.id()) > 0) modules.add(module);
+        }
+        modules.sort((left, right) -> Long.compare(
+                ModuleUsage.lastOpened(activity, right.id()),
+                ModuleUsage.lastOpened(activity, left.id())
+        ));
+        if (modules.size() > 6) return new ArrayList<>(modules.subList(0, 6));
+        return modules;
+    }
+
+    private List<InstalledModule> favoriteModules() {
+        Map<String, InstalledModule> byId = new HashMap<>();
+        for (InstalledModule module : installed.values()) byId.put(module.id(), module);
+        List<InstalledModule> result = new ArrayList<>();
+        for (String id : FavoriteModules.list(activity)) {
+            InstalledModule module = byId.get(id);
+            if (module != null) result.add(module);
+            if (result.size() >= 6) break;
+        }
+        return result;
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private void installTapGuard(View view, Runnable action) {
+        final float[] down = new float[2];
+        final boolean[] moved = new boolean[]{false};
+        final float slop = android.view.ViewConfiguration.get(activity).getScaledTouchSlop();
+        view.setOnTouchListener((target, event) -> {
+            int touchAction = event.getActionMasked();
+            if (touchAction == MotionEvent.ACTION_DOWN) {
+                down[0] = event.getX();
+                down[1] = event.getY();
+                moved[0] = false;
+            } else if (touchAction == MotionEvent.ACTION_MOVE) {
+                float dx = event.getX() - down[0];
+                float dy = event.getY() - down[1];
+                if (Math.hypot(dx, dy) > slop) moved[0] = true;
+            }
+            return false;
+        });
+        view.setOnClickListener(target -> {
+            if (moved[0]) {
+                moved[0] = false;
+                return;
+            }
+            action.run();
+        });
+    }
+
+    private View buildRecentGrid(List<InstalledModule> modules) {
+        LinearLayout grid = new LinearLayout(activity);
+        grid.setOrientation(VERTICAL);
+        for (int index = 0; index < modules.size(); index += 3) {
+            LinearLayout row = new LinearLayout(activity);
+            row.setOrientation(HORIZONTAL);
+            for (int column = 0; column < 3; column += 1) {
+                int position = index + column;
+                if (position < modules.size()) {
+                    InstalledModule module = modules.get(position);
+                    LinearLayout tile = new LinearLayout(activity);
+                    tile.setOrientation(VERTICAL);
+                    tile.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+                    tile.setPadding(dp(3), dp(3), dp(3), dp(4));
+                    tile.setClickable(true);
+                    tile.setFocusable(true);
+                    installTapGuard(tile, () -> listener.onOpenInstalled(module));
+                    tile.setOnLongClickListener(view -> {
+                        showModuleMenu(module);
+                        return true;
+                    });
+
+                    int accent = UiKit.parseColor(module.accent(), UiKit.ACCENT);
+                    FrameLayout icon = new FrameLayout(activity);
+                    icon.setBackground(UiKit.rounded(
+                            activity, UiKit.blend(accent, Color.WHITE, 0.14f), 12f
+                    ));
+                    IconView glyph = new IconView(activity).type(iconFor(glyphFor(module.id())));
+                    glyph.setColor(accent);
+                    icon.addView(glyph, new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
+                    tile.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+                    TextView name = UiKit.text(activity, module.name(), 9.5f, UiKit.INK, true);
+                    name.setMaxLines(2);
+                    name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    name.setGravity(Gravity.CENTER);
+                    LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                    );
+                    nameParams.topMargin = dp(5);
+                    tile.addView(name, nameParams);
+                    row.addView(tile, new LinearLayout.LayoutParams(
+                            0, dp(84), 1f
+                    ));
+                } else {
+                    row.addView(new View(activity), new LinearLayout.LayoutParams(
+                            0, dp(84), 1f
+                    ));
+                }
+            }
+            grid.addView(row);
+        }
+        return grid;
+    }
+
+    private View buildInstalledRow(InstalledModule module) {
+        int accent = UiKit.parseColor(module.accent(), UiKit.ACCENT);
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), dp(11), dp(8), dp(11));
+        row.setBackground(UiKit.ripple(activity, UiKit.SURFACE, 18f));
+        row.setClickable(true);
+        row.setFocusable(true);
+        installTapGuard(row, () -> listener.onOpenInstalled(module));
+        row.setOnLongClickListener(view -> {
+            showModuleMenu(module);
+            return true;
+        });
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        rowParams.topMargin = dp(8);
+        row.setLayoutParams(rowParams);
+
+        FrameLayout icon = new FrameLayout(activity);
+        icon.setBackground(UiKit.rounded(activity, UiKit.blend(accent, Color.WHITE, 0.14f), 12f));
+        IconView glyph = new IconView(activity).type(iconFor(glyphFor(module.id())));
+        glyph.setColor(accent);
+        icon.addView(glyph, new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        LinearLayout copy = new LinearLayout(activity);
+        copy.setOrientation(VERTICAL);
+        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        copyParams.leftMargin = dp(10);
+        row.addView(copy, copyParams);
+        copy.addView(UiKit.text(activity, module.name(), 12.5f, UiKit.INK, true));
+        String meta = "v" + module.version() + " · " + (module.capabilities().contains("storage")
+                ? "SQLite"
+                : "无存�?);
+        TextView sub = UiKit.label(activity, meta, 9f, UiKit.FAINT);
+        LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        subParams.topMargin = dp(3);
+        copy.addView(sub, subParams);
+
+        FrameLayout details = new FrameLayout(activity);
+        details.setClickable(true);
+        details.setFocusable(true);
+        details.setContentDescription("模块详情");
+        IconView chevron = new IconView(activity).type(IconView.Type.CHEVRON_RIGHT);
+        chevron.setColor(UiKit.FAINT);
+        details.addView(chevron, new FrameLayout.LayoutParams(dp(15), dp(15), Gravity.CENTER));
+        details.setOnClickListener(view -> listener.onInstalledDetails(module));
+        row.addView(details, new LinearLayout.LayoutParams(dp(32), dp(38)));
+        return row;
+    }
+
+    private String glyphFor(String id) {
+        if (demoApps != null) {
+            for (DemoApp app : demoApps) {
+                if (app.id().equals(id)) return app.glyph();
+            }
+        }
+        return "";
+    }
+
+    private View buildDemoRow(DemoApp app) {
+        String state = stateOf(app);
+        int accent = UiKit.parseColor(app.accent(), UiKit.ACCENT);
+        int iconBg = UiKit.blend(accent, Color.WHITE, 0.14f);
+
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), dp(11), dp(12), dp(11));
+        row.setBackground(UiKit.ripple(activity, UiKit.SURFACE, 18f));
+        row.setClickable(true);
+        row.setFocusable(true);
+        row.setOnClickListener(view -> listener.onDemoDetails(app, state));
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        rowParams.topMargin = dp(7);
+        row.setLayoutParams(rowParams);
+
+        FrameLayout icon = new FrameLayout(activity);
+        icon.setBackground(UiKit.rounded(activity, iconBg, 12f));
+        IconView glyph = new IconView(activity).type(iconFor(app.glyph()));
+        glyph.setColor(accent);
+        icon.addView(glyph, new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        LinearLayout copy = new LinearLayout(activity);
+        copy.setOrientation(VERTICAL);
+        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        copyParams.leftMargin = dp(10);
+        row.addView(copy, copyParams);
+        copy.addView(UiKit.text(activity, app.name(), 12.5f, UiKit.INK, true));
+        TextView desc = UiKit.text(
+                activity,
+                app.description() + " · v" + app.version(),
+                9f,
+                UiKit.FAINT,
+                false
+        );
+        LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        descParams.topMargin = dp(3);
+        copy.addView(desc, descParams);
+
+        TextView status = UiKit.text(
+                activity,
+                state.isEmpty() ? "查看" : state,
+                8.5f,
+                state.startsWith("已安�?) ? UiKit.FAINT : UiKit.ACCENT_DEEP,
+                true
+        );
+        status.setPadding(dp(7), dp(4), dp(7), dp(4));
+        status.setBackground(UiKit.rounded(
+                activity,
+                state.startsWith("已安�?) ? UiKit.SURFACE_SOFT : UiKit.ACCENT_SOFT,
+                99f
+        ));
+        row.addView(status);
+        return row;
+    }
+
+    private void buildRemote(LinearLayout content) {
+        LinearLayout card = new LinearLayout(activity);
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(15), dp(14), dp(15), dp(14));
+        card.setBackground(UiKit.stroked(activity, UiKit.SURFACE, UiKit.LINE, 20f));
+        content.addView(card, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        FrameLayout icon = new FrameLayout(activity);
+        icon.setBackground(UiKit.rounded(activity, UiKit.TEAL_SOFT, 14f));
+        IconView cloud = new IconView(activity).type(IconView.Type.DOWNLOAD);
+        cloud.setColor(UiKit.TEAL);
+        icon.addView(cloud, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        card.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+
+        TextView title = UiKit.text(activity, "远程 catalog", 17f, UiKit.INK, true);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        titleParams.topMargin = dp(13);
+        card.addView(title, titleParams);
+        TextView desc = UiKit.text(
+                activity,
+                "�?URL 加载模块列表，校�?sha256 后原子安装；失败不会替换当前版本�?,
+                10.5f,
+                UiKit.MUTED,
+                false
+        );
+        desc.setLineSpacing(dp(1), 1.2f);
+        LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        descParams.topMargin = dp(6);
+        card.addView(desc, descParams);
+
+        TextView open = UiKit.primaryButton(activity, "打开远程目录");
+        open.setOnClickListener(view -> listener.onRemote());
+        LinearLayout.LayoutParams openParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        openParams.topMargin = dp(16);
+        content.addView(open, openParams);
+
+        TextView note = UiKit.text(
+                activity,
+                "远程目录仍使用独立面板，后续可并入此页�?,
+                9f,
+                UiKit.FAINT,
+                false
+        );
+        note.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        noteParams.topMargin = dp(12);
+        content.addView(note, noteParams);
+    }
+
+    private void buildLocalInstall(LinearLayout content) {
+        LinearLayout card = new LinearLayout(activity);
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(15), dp(15), dp(15), dp(15));
+        card.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 20f));
+        content.addView(card, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        card.addView(UiKit.text(activity, "从链接安�?, 15f, UiKit.INK, true));
+        TextView sub = UiKit.text(
+                activity,
+                "直接下载 .pkg 并安装，适合开发机或临时测试包�?,
+                10f,
+                UiKit.MUTED,
+                false
+        );
+        LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        subParams.topMargin = dp(5);
+        card.addView(sub, subParams);
+
+        EditText url = field("https://example.com/app.pkg");
+        url.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        card.addView(url, fieldParams());
+
+        TextView install = UiKit.primaryButton(activity, "下载并安�?);
+        install.setOnClickListener(view -> {
+            String link = url.getText().toString().trim();
+            if (link.isEmpty()) {
+                url.setError("请输入模块包 URL");
+                return;
+            }
+            listener.onUrl(link, "");
+        });
+        LinearLayout.LayoutParams installParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(46)
+        );
+        installParams.topMargin = dp(14);
+        card.addView(install, installParams);
+
+        TextView or = UiKit.text(activity, "或从本地选择", 10f, UiKit.FAINT, false);
+        or.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams orParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        orParams.topMargin = dp(14);
+        content.addView(or, orParams);
+
+        TextView pick = UiKit.secondaryButton(activity, "选择本地 .pkg");
+        pick.setBackground(UiKit.ripple(activity, UiKit.ACCENT_SOFT, 16f));
+        pick.setOnClickListener(view -> listener.onPickFile(""));
+        LinearLayout.LayoutParams pickParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(46)
+        );
+        pickParams.topMargin = dp(8);
+        content.addView(pick, pickParams);
+
+        TextView warning = UiKit.text(
+                activity,
+                "请自行确认安装包来源可靠。不明来源的模块包可能导致程序异常、数据风险或安全问题�?,
+                10f,
+                UiKit.DANGER,
+                false
+        );
+        warning.setLineSpacing(dp(1), 1.2f);
+        warning.setPadding(dp(10), dp(9), dp(10), dp(9));
+        warning.setBackground(UiKit.rounded(activity, UiKit.DANGER_SOFT, 12f));
+        LinearLayout.LayoutParams warningParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        warningParams.topMargin = dp(14);
+        content.addView(warning, warningParams);
+    }
+
+    private EditText field(String hint) {
+        EditText field = new EditText(activity);
+        field.setHint(hint);
+        field.setTextSize(12f);
+        field.setTextColor(UiKit.INK);
+        field.setHintTextColor(UiKit.FAINT);
+        field.setSingleLine(true);
+        field.setPadding(dp(12), dp(10), dp(12), dp(10));
+        field.setBackground(UiKit.rounded(activity, UiKit.SURFACE_SOFT, 12f));
+        return field;
+    }
+
+    private LinearLayout.LayoutParams fieldParams() {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.topMargin = dp(8);
+        return params;
+    }
+
+    private void buildFile(LinearLayout content) {
+        LinearLayout card = new LinearLayout(activity);
+        card.setOrientation(VERTICAL);
+        card.setGravity(Gravity.CENTER);
+        card.setPadding(dp(20), dp(28), dp(20), dp(24));
+        card.setBackground(UiKit.stroked(activity, UiKit.SURFACE, UiKit.LINE, 22f));
+        content.addView(card, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        FrameLayout icon = new FrameLayout(activity);
+        icon.setBackground(UiKit.rounded(activity, UiKit.ACCENT_SOFT, 17f));
+        IconView file = new IconView(activity).type(IconView.Type.FILE);
+        file.setColor(UiKit.ACCENT_DEEP);
+        icon.addView(file, new FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER));
+        card.addView(icon, new LinearLayout.LayoutParams(dp(58), dp(58)));
+
+        TextView title = UiKit.text(activity, "选择一�?.pkg", 14f, UiKit.INK, true);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        titleParams.topMargin = dp(15);
+        card.addView(title, titleParams);
+        TextView desc = UiKit.text(
+                activity,
+                "系统选择器会读取 module.json、入口文件和包结构，失败时旧版本保留�?,
+                10.5f,
+                UiKit.MUTED,
+                false
+        );
+        desc.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        descParams.topMargin = dp(6);
+        card.addView(desc, descParams);
+        TextView pick = UiKit.primaryButton(activity, "打开文件选择�?);
+        pick.setOnClickListener(view -> listener.onPickFile(""));
+        LinearLayout.LayoutParams pickParams = new LinearLayout.LayoutParams(dp(180), dp(48));
+        pickParams.topMargin = dp(17);
+        card.addView(pick, pickParams);
+    }
+
+    private String stateOf(DemoApp app) {
+        InstalledModule module = installed.get(app.id());
+        if (module == null) return "";
+        int compare = SemVer.compare(module.version(), app.version());
+        if (compare == 0) return "已安�?;
+        if (compare < 0) return "可更�?;
+        return "已安�?" + module.version();
+    }
+
+    private IconView.Type iconFor(String glyph) {
+        if (glyph == null) return IconView.Type.SPARK;
+        switch (glyph) {
+            case "list":
+                return IconView.Type.LIST;
+            case "timer":
+                return IconView.Type.TIMER;
+            case "brush":
+                return IconView.Type.BRUSH;
+            case "calc":
+                return IconView.Type.CALC;
+            case "quiz":
+                return IconView.Type.QUIZ;
+            case "network":
+                return IconView.Type.NETWORK;
+            default:
+                return IconView.Type.SPARK;
+        }
+    }
+}
