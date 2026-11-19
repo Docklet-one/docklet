@@ -19,10 +19,10 @@ if (-not (Test-Path -LiteralPath $gradle)) {
 $env:JAVA_HOME = $jdk
 $env:GRADLE_USER_HOME = Join-Path $root ".gradle-home"
 
-if ($Clean) {
-    & $gradle -p $project clean --console=plain --no-daemon --no-watch-fs
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-}
+# Always clean：增量构建会把产物写成带对齐填充的大包（约 380 KB），
+# 清理后重建是紧凑的（约 285 KB），两者功能相同但体积差 25%。
+& $gradle -p $project clean --console=plain --no-daemon --no-watch-fs
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $targets = @(":core:test", ":app:assembleDebug")
 if ($Lint) {
