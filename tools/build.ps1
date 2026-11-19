@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Lint,
     [switch]$Clean
 )
@@ -10,17 +10,17 @@ $gradle = Join-Path $root ".tools\gradle-8.2.1\bin\gradle.bat"
 $project = Join-Path $root "shell"
 
 if (-not (Test-Path -LiteralPath $jdk)) {
-    throw "缺少项目 JDK：$jdk"
+    throw "missing project JDK: $jdk"
 }
 if (-not (Test-Path -LiteralPath $gradle)) {
-    throw "缺少项目 Gradle：$gradle"
+    throw "missing project Gradle: $gradle"
 }
 
 $env:JAVA_HOME = $jdk
 $env:GRADLE_USER_HOME = Join-Path $root ".gradle-home"
 
-# Always clean：增量构建会把产物写成带对齐填充的大包（约 380 KB），
-# 清理后重建是紧凑的（约 285 KB），两者功能相同但体积差 25%。
+# Always clean: incremental builds produce a padded APK (~380 KB) while a clean
+# build is compact (~285 KB); the code is identical, only padding differs.
 & $gradle -p $project clean --console=plain --no-daemon --no-watch-fs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -42,6 +42,6 @@ if ($code -eq 0) {
 }
 
 if ($code -ne 0) {
-    Write-Host "构建失败，退出码 $code" -ForegroundColor Red
+    Write-Host "build failed with exit code $code" -ForegroundColor Red
 }
 exit $code

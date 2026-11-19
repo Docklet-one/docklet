@@ -803,9 +803,11 @@ public final class HomeScreen extends LinearLayout {
 
         Switch global = new Switch(activity);
         if (anyRequester) {
-            global.setChecked(!notifyingModules().isEmpty()
+            // 未授予系统通知权限时，开关一律显示为关。
+            global.setChecked(permission
+                    && !notifyingModules().isEmpty()
                     && !"全部关闭".equals(notificationState()));
-            global.setEnabled(permission && !notifyingModules().isEmpty());
+            global.setEnabled(!notifyingModules().isEmpty());
             global.setThumbTintList(ColorStateList.valueOf(UiKit.ACCENT));
             global.setTrackTintList(switchTrack(0xFFD9A262, 0xFFC9BBA8));
         } else {
@@ -818,6 +820,14 @@ public final class HomeScreen extends LinearLayout {
         global.setSwitchMinWidth(dp(64));
         global.setOnCheckedChangeListener((button, checked) -> {
             if (updating[0]) return;
+            if (checked && !permission) {
+                // Not granted yet: ask the system, keep the switch off until it is.
+                updating[0] = true;
+                button.setChecked(false);
+                updating[0] = false;
+                listener.onRequestNotificationPermission();
+                return;
+            }
             updating[0] = true;
             setAllNotifications(checked);
             for (Switch toggle : toggles) toggle.setChecked(checked);
@@ -963,12 +973,18 @@ public final class HomeScreen extends LinearLayout {
         copy.addView(detail, detailParams);
 
         Switch toggle = new Switch(activity);
-        toggle.setChecked(NotificationPrefs.moduleEnabled(activity, module.id()));
-        toggle.setEnabled(enabled);
+        toggle.setChecked(enabled && NotificationPrefs.moduleEnabled(activity, module.id()));
+        toggle.setEnabled(true);
         toggle.setThumbTintList(ColorStateList.valueOf(UiKit.TEAL));
         toggle.setSwitchMinWidth(dp(62));
         toggle.setTrackTintList(switchTrack(0xFF86A992, 0xFFC6CFC7));
         toggle.setOnCheckedChangeListener((button, checked) -> {
+            if (checked && !enabled) {
+                // 系统未授权：先申请，开关保持关。
+                button.setChecked(false);
+                listener.onRequestNotificationPermission();
+                return;
+            }
             NotificationPrefs.setModuleEnabled(activity, module.id(), checked);
             detail.setText(checked ? "模块消息" : "已关闭");
             onChange.run();
