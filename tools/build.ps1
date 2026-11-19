@@ -24,13 +24,6 @@ if ($Clean) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-# Generate packages/catalog first so the package smoke tests always see dist/.
-& $gradle -p $project :app:copyDemosToDist --console=plain --no-daemon --no-watch-fs
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "示例包生成失败，退出码 $LASTEXITCODE" -ForegroundColor Red
-    exit $LASTEXITCODE
-}
-
 $targets = @(":core:test", ":app:assembleDebug")
 if ($Lint) {
     $targets += ":app:lintDebug"

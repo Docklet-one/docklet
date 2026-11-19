@@ -22,21 +22,6 @@ public final class DemoCatalog {
     private DemoCatalog() {
     }
 
-    /** Bundled catalog shipped inside the APK. */
-    public static List<DemoApp> loadBundled(Context context) {
-        String json;
-        try (InputStream in = context.getAssets().open("demos.json")) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
-            json = out.toString(StandardCharsets.UTF_8.name());
-        } catch (Exception error) {
-            return Collections.emptyList();
-        }
-        return parse(json);
-    }
-
     /** Online catalog only: the last downloaded copy, empty when never fetched. */
     public static List<DemoApp> load(Context context) {
         String cached = CatalogSource.cachedJson(context);
@@ -58,9 +43,14 @@ public final class DemoCatalog {
                 String name = Json.string(item, "name");
                 String version = Json.string(item, "version");
                 String asset = Json.string(item, "asset");
+                String url = Json.string(item, "url", "");
                 if (!ModuleManifest.isValidId(id) || name == null || name.trim().isEmpty()) continue;
                 if (!SemVer.isValid(version)) continue;
-                if (asset == null || !asset.matches("^[a-z0-9.-]+\\.pkg$")) continue;
+                boolean hasAsset = asset != null && asset.matches("^[a-z0-9.-]+\\.pkg$");
+                boolean hasUrl = url != null && !url.isEmpty();
+                // Online entries carry a download url and need no bundled asset name.
+                if (!hasAsset && !hasUrl) continue;
+                if (!hasAsset) asset = "";
                 if (!ids.add(id)) continue;
                 String kind = Json.string(item, "kind", "示例");
                 String glyph = Json.string(item, "glyph", "spark");
@@ -82,7 +72,6 @@ public final class DemoCatalog {
                 }
                 long size = Json.longValue(item, "size", 0L);
                 String updatedAt = Json.string(item, "updatedAt", "");
-                String url = Json.string(item, "url", "");
                 String sha256 = Json.string(item, "sha256", "");
                 List<DemoApp.Permission> permissions = new ArrayList<>();
                 List<Object> rawPermissions = Json.asArray(item.get("permissions"));

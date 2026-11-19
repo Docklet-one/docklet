@@ -1,44 +1,6 @@
-import groovy.json.JsonOutput
-import groovy.json.JsonSlurper
-
 apply plugin: "com.android.application"
 
-def demoRoot = rootProject.file("../apps")
-def generatedDemoAssets = layout.buildDirectory.dir("generated/demoAssets")
 def distDir = rootProject.file("../dist")
-
-def demoApps = []
-if (demoRoot.isDirectory()) {
-    demoRoot.listFiles()
-            .findAll { it.isDirectory() && new File(it, "module.json").isFile() }
-            .sort { left, right -> left.name <=> right.name }
-            .each { dir ->
-                def manifestFile = new File(dir, "module.json")
-                def manifest = new JsonSlurper().parse(manifestFile)
-                demoApps << [
-                        dir        : dir,
-                        id         : manifest.id,
-                        name       : manifest.name,
-                        kind       : manifest.kind ?: "示例",
-                        glyph      : manifest.glyph ?: "spark",
-                        version    : manifest.version,
-                        description: manifest.description ?: "",
-                        tagline    : manifest.tagline ?: "",
-                        author     : manifest.author ?: "Docklet",
-                        authorContact: manifest.authorContact ?: "docklet@163.com",
-                        minShell   : manifest.minShell ?: "1.0.0",
-                        entry      : manifest.entry ?: "",
-                        permissions: manifest.permissions ?: [],
-                        updatedAt  : manifest.updatedAt ?: new Date(manifestFile.lastModified()).format("yyyy-MM-dd"),
-                        accent     : manifest.accent ?: "#D9792B",
-                        capabilities: manifest.capabilities ?: [],
-                        order      : manifest.order ?: 999,
-                        asset      : "${manifest.id}-${manifest.version}.pkg".toString()
-                ]
-            }
-}
-demoApps.sort { left, right -> left.order <=> right.order }
-
 def buildStamp = new Date().format("yyyyMMdd-HHmmss")
 
 android {
@@ -50,7 +12,9 @@ android {
         minSdk 26
         targetSdk 34
         versionCode 1
-        versionName "0.1.0"
+        // 模块用 minShell 声明它们要求的最低壳版本（当前模块要 1.0.0 / 1.1.0），
+        // 壳版本必须不低于平台契约版本，否则在线安装会被拒绝。
+        versionName "1.1.0"
         buildConfigField "String", "BUILD_STAMP", "\"${buildStamp}\""
         resourceConfigurations += ["zh"]
     }
@@ -75,12 +39,6 @@ android {
         targetCompatibility JavaVersion.VERSION_11
     }
 
-    sourceSets {
-        main {
-            assets.srcDirs += generatedDemoAssets
-        }
-    }
-
     packagingOptions {
         resources {
             excludes += ["META-INF/*.kotlin_module"]
@@ -92,89 +50,11 @@ dependencies {
     implementation project(":core")
 }
 
-def demoPackageTasks = []
-demoApps.each { app ->
-    def taskName = "packageDemo_" + app.id.replaceAll("[^A-Za-z0-9]", "_")
-    demoPackageTasks << tasks.register(taskName, Zip) {
-        from(app.dir)
-        archiveFileName = app.asset
-        destinationDirectory = generatedDemoAssets
-        exclude "docklet-sdk.js"
-        exclude "README.md"
-        exclude "**/.DS_Store"
-        preserveFileTimestamps = false
-        reproducibleFileOrder = true
-    }
-}
-
-def demoCatalogTask = tasks.register("demoCatalog") {
-    dependsOn demoPackageTasks
-    inputs.files(demoApps.collect { new File(it.dir, "module.json") })
-    def output = generatedDemoAssets.map { it.file("demos.json") }
-    outputs.file(output)
-    doFirst {
-        // Generated assets survive version bumps; remove packages that are no
-        // longer part of the current apps/ set so the APK cannot keep an old
-        // module version by accident.
-        File dir = generatedDemoAssets.get().asFile
-        Set<String> expected = demoApps.collect { it.asset } as Set
-        dir.listFiles()?.each { file ->
-            if (file.name.endsWith(".pkg") && !expected.contains(file.name)) {
-                delete(file)
-            }
-        }
-    }
-    doLast {
-        File file = output.get().asFile
-        file.parentFile.mkdirs()
-        def apps = demoApps.collect { app ->
-            [
-                    id          : app.id,
-                    name        : app.name,
-                    kind        : app.kind,
-                    glyph       : app.glyph,
-                    version     : app.version,
-                    description : app.description,
-                    tagline     : app.tagline,
-                    author      : app.author,
-                    authorContact: app.authorContact,
-                    minShell    : app.minShell,
-                    entry       : app.entry,
-                    permissions : app.permissions,
-                    updatedAt   : app.updatedAt,
-                    size        : new File(generatedDemoAssets.get().asFile, app.asset).length(),
-                    accent      : app.accent,
-                    asset       : app.asset,
-                    capabilities: app.capabilities
-            ]
-        }
-        file.setText(
-                JsonOutput.prettyPrint(JsonOutput.toJson([spec: 1, apps: apps])),
-                "UTF-8"
-        )
-    }
-}
-
-tasks.register("copyDemosToDist", Copy) {
-    dependsOn demoCatalogTask
-    from(generatedDemoAssets)
-    include "*.pkg"
-    include "demos.json"
-    into distDir
-}
-
+// 壳不再内置任何模块：APK 里只有壳本身和 docklet-sdk.js。
 tasks.register("copyDebugApkToDist", Copy) {
     from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
     into distDir
     rename { "docklet-shell-0.1.0-debug.apk" }
-}
-
-tasks.named("preBuild").configure {
-    dependsOn demoCatalogTask
-}
-
-tasks.matching { it.name == "assembleDebug" || it.name == "assembleRelease" }.configureEach {
-    finalizedBy "copyDemosToDist"
 }
 
 tasks.matching { it.name == "assembleDebug" }.configureEach {

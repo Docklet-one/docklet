@@ -228,8 +228,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         maybeRefreshCatalog();
             registerModuleReadyReceiver();
             showHome();
-            preinstallBundledV3();
-            if (interrupted != null) {
+                if (interrupted != null) {
                 showSnack("检测到上次启动中断，已记录一次失败");
             }
         } catch (Exception error) {
@@ -985,7 +984,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
                     @Override
                     public void onInstall() {
-                        installBundledDemo(app, module -> {
+                        installDemoApp(app, module -> {
                             if (screenRef[0] != null) {
                                 screenRef[0].setState("已安装", module.version());
                             }
@@ -1724,7 +1723,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                         showSnack(app.name() + " " + state);
                         return;
                     }
-                    installBundledDemo(app);
+                    installDemoApp(app, null);
                 });
                 LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -2584,115 +2583,16 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         sheet.show();
     }
 
-    /**
-     * First launch convenience: install the bundled V3 module once. The
-     * preference is set after success so a user-initiated uninstall is not
-     * undone on the next launch.
-     */
-    private void preinstallBundledV3() {
-        android.content.SharedPreferences prefs =
-                getSharedPreferences(ModuleRouterActivity.ACTIVE_PREFS, MODE_PRIVATE);
-        if (prefs.getBoolean("v3_preinstalled", false)) return;
-        if (demoApps == null) return;
-        DemoApp target = null;
-        for (DemoApp app : demoApps) {
-            if ("dsh-console".equals(app.id())) {
-                target = app;
-                break;
-            }
-        }
-        if (target == null) return;
-        try {
-            manager.get(target.id());
-            prefs.edit().putBoolean("v3_preinstalled", true).apply();
-            return;
-        } catch (ModuleException ignored) {
-            // Not installed yet; install the bundled package below.
-        }
-        final DemoApp app = target;
-        io.execute(() -> {
-            File temp = new File(getCacheDir(), app.id() + "-preinstall.pkg");
-            try {
-                try (InputStream in = getAssets().open(app.asset());
-                     OutputStream out = new FileOutputStream(temp)) {
-                    copyLimited(in, out, ModuleManager.MAX_PACKAGE_BYTES);
-                }
-                manager.install(temp);
-                prefs.edit().putBoolean("v3_preinstalled", true).apply();
-                main.post(() -> {
-                    showHome();
-                    showSnack("已预置 " + app.name());
-                });
-            } catch (ModuleException error) {
-                if (ModuleException.VERSION_CONFLICT.equals(error.getCode())) {
-                    prefs.edit().putBoolean("v3_preinstalled", true).apply();
-                }
-            } catch (Exception ignored) {
-                // Retry on the next launch; do not block the shell.
-            } finally {
-                //noinspection ResultOfMethodCallIgnored
-                temp.delete();
-            }
-        });
-    }
-
-    private void installBundledDemo(DemoApp app) {
-        installBundledDemo(app, null);
-    }
-
-    private void installBundledDemo(
+    /** Installs a catalog entry by downloading its url. */
+    private void installDemoApp(
             DemoApp app,
             java.util.function.Consumer<InstalledModule> onSuccess
     ) {
-        if (moduleAwaitingResult) {
-            stopActiveModule(() -> installBundledDemo(app, onSuccess));
+        if (app.url() == null || app.url().isEmpty()) {
+            showSnack("目录里没有这个模块的下载地址");
             return;
         }
-        Dialog progress = showProgress(
-                "正在安装 " + app.name(),
-                app.asset() + " · 校验后解包"
-        );
-        io.execute(() -> {
-            File temp = new File(
-                    getCacheDir(),
-                    app.id() + "-" + System.currentTimeMillis() + ".pkg"
-            );
-            try {
-                try (InputStream in = getAssets().open(app.asset());
-                     OutputStream out = new FileOutputStream(temp)) {
-                    copyLimited(in, out, ModuleManager.MAX_PACKAGE_BYTES);
-                }
-                InstalledModule module = manager.install(temp);
-                main.post(() -> {
-                    dismissQuietly(progress);
-                    if (onSuccess != null) {
-                        onSuccess.accept(module);
-                    } else {
-                        showHome();
-                    }
-                    showSnack("已安装 " + module.name() + " v" + module.version());
-                });
-            } catch (ModuleException error) {
-                main.post(() -> {
-                    dismissQuietly(progress);
-                    if (ModuleException.VERSION_CONFLICT.equals(error.getCode())) {
-                        showSnack(app.name() + " 已是最新版本");
-                    } else if (ModuleException.VERSION_DOWNGRADE.equals(error.getCode())) {
-                        showSnack("已安装更高版本的 " + app.name());
-                    } else {
-                        showErrorSheet("安装失败", error.getCode(), friendly(error.getCode(), error.getMessage()));
-                    }
-                });
-            } catch (Exception error) {
-                main.post(() -> {
-                    dismissQuietly(progress);
-                    showErrorSheet("安装失败", "INSTALL_FAILED", safeMessage(error));
-                });
-            } finally {
-                //noinspection ResultOfMethodCallIgnored
-                temp.delete();
-            }
-        });
+        installFromUrl(app.url(), app.sha256(), onSuccess);
     }
 
     private void confirmUrlInstall(String url, String sha256) {
@@ -2774,8 +2674,16 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     }
 
     private void installFromUrl(String url, String sha256) {
+        installFromUrl(url, sha256, null);
+    }
+
+    private void installFromUrl(
+            String url,
+            String sha256,
+            java.util.function.Consumer<InstalledModule> onSuccess
+    ) {
         if (moduleAwaitingResult) {
-            stopActiveModule(() -> installFromUrl(url, sha256));
+            stopActiveModule(() -> installFromUrl(url, sha256, onSuccess));
             return;
         }
         String host;
@@ -2799,8 +2707,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 InstalledModule module = manager.install(temp);
                 main.post(() -> {
                     dismissQuietly(progress);
-                    showHome();
-                    showSnack("已安装 " + module.name() + " v" + module.version());
+                    if (onSuccess != null) {
+                        onSuccess.accept(module);
+                    } else {
+                        showHome();
+                        showSnack("已安装 " + module.name() + " v" + module.version());
+                    }
                 });
             } catch (ModuleException error) {
                 main.post(() -> {
