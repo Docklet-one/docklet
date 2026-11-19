@@ -787,18 +787,35 @@ public final class HomeScreen extends LinearLayout {
         card.setOrientation(VERTICAL);
         card.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 18f));
         boolean permission = notificationsEnabled();
+        // Nothing to toggle until some installed module declares a notification
+        // capability; a fresh shell shows a disabled row instead.
+        boolean anyRequester = false;
+        for (InstalledModule item : modules) {
+            if (item.capabilities().contains("notify")
+                    || item.capabilities().contains("background")) {
+                anyRequester = true;
+                break;
+            }
+        }
         final List<Switch> toggles = new ArrayList<>();
         final boolean[] updating = {false};
         final TextView[] permissionDetailRef = new TextView[1];
 
         Switch global = new Switch(activity);
-        global.setChecked(!notifyingModules().isEmpty()
-                && !"全部关闭".equals(notificationState()));
-        global.setEnabled(permission && !notifyingModules().isEmpty());
+        if (anyRequester) {
+            global.setChecked(!notifyingModules().isEmpty()
+                    && !"全部关闭".equals(notificationState()));
+            global.setEnabled(permission && !notifyingModules().isEmpty());
+            global.setThumbTintList(ColorStateList.valueOf(UiKit.ACCENT));
+            global.setTrackTintList(switchTrack(0xFFD9A262, 0xFFC9BBA8));
+        } else {
+            global.setChecked(false);
+            global.setEnabled(false);
+            global.setThumbTintList(ColorStateList.valueOf(UiKit.FAINT));
+            global.setTrackTintList(switchTrack(0xFFDCD3C6, 0xFFE7DFD3));
+        }
         global.setContentDescription("全部模块通知");
-        global.setThumbTintList(ColorStateList.valueOf(UiKit.ACCENT));
         global.setSwitchMinWidth(dp(64));
-        global.setTrackTintList(switchTrack(0xFFD9A262, 0xFFC9BBA8));
         global.setOnCheckedChangeListener((button, checked) -> {
             if (updating[0]) return;
             updating[0] = true;
@@ -814,16 +831,19 @@ public final class HomeScreen extends LinearLayout {
         permissionRow.setOrientation(HORIZONTAL);
         permissionRow.setGravity(Gravity.CENTER_VERTICAL);
         permissionRow.setPadding(dp(13), dp(11), dp(13), dp(11));
-        if (!permission) {
+        if (anyRequester && !permission) {
             permissionRow.setClickable(true);
             permissionRow.setOnClickListener(view -> listener.onRequestNotificationPermission());
         }
         FrameLayout iconWrap = new FrameLayout(activity);
-        iconWrap.setBackground(UiKit.rounded(
-                activity, permission ? UiKit.TEAL_SOFT : UiKit.DANGER_SOFT, 9f
-        ));
+        int iconBg = !anyRequester
+                ? UiKit.SURFACE_SOFT
+                : (permission ? UiKit.TEAL_SOFT : UiKit.DANGER_SOFT);
+        iconWrap.setBackground(UiKit.rounded(activity, iconBg, 9f));
         IconView icon = new IconView(activity).type(IconView.Type.INFO);
-        icon.setColor(permission ? UiKit.TEAL : UiKit.DANGER);
+        icon.setColor(!anyRequester
+                ? UiKit.FAINT
+                : (permission ? UiKit.TEAL : UiKit.DANGER));
         iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
         permissionRow.addView(iconWrap, new LinearLayout.LayoutParams(dp(36), dp(36)));
         LinearLayout permissionCopy = new LinearLayout(activity);
@@ -834,11 +854,23 @@ public final class HomeScreen extends LinearLayout {
         permissionCopyParams.leftMargin = dp(10);
         permissionRow.addView(permissionCopy, permissionCopyParams);
         permissionCopy.addView(UiKit.text(activity, "通知权限", 13f, UiKit.INK, true));
+        String detailText;
+        int detailColor;
+        if (!anyRequester) {
+            detailText = "未有模块申请";
+            detailColor = UiKit.FAINT;
+        } else if (permission) {
+            detailText = notificationState();
+            detailColor = UiKit.FAINT;
+        } else {
+            detailText = "未允许，点此打开";
+            detailColor = UiKit.DANGER;
+        }
         TextView permissionDetail = UiKit.text(
                 activity,
-                permission ? notificationState() : "未允许，点此打开",
+                detailText,
                 9.5f,
-                permission ? UiKit.FAINT : UiKit.DANGER,
+                detailColor,
                 false
         );
         permissionDetailRef[0] = permissionDetail;
