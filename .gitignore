@@ -1,9 +1,11 @@
 # 壳仓库只放源码
-#
-# 1) 模块源码是独立项目，不进壳仓库
-apps/
 
-# 2) 构建产物
+# 模块源码由「模块」对话维护，这里只保留空目录占位
+apps/*
+!apps/.gitkeep
+!apps/README.md
+
+# 构建产物
 shell/.gradle/
 shell/app/build/
 shell/core/build/
@@ -13,7 +15,7 @@ dist/
 *.pkg
 *.zip
 
-# 3) 本机配置与工具链
+# 本机配置与工具链
 shell/local.properties
 .tools/
 .gradle-home/
@@ -22,13 +24,13 @@ shell/local.properties
 backups/
 designs/
 
-# 4) 可执行工具（构建/调试用，不进仓库）
+# 可执行工具
 *.exe
 *.dll
 *.dylib
 *.so
 *.log
 
-# 5) 系统杂项
+# 系统杂项
 .DS_Store
 Thumbs.db
