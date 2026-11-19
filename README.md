@@ -14,7 +14,6 @@ Android 壳：负责模块的安装、运行、隔离、存储和恢复。模块
 shell/      Android 工程（Gradle）：app 是壳本身，core 是模块平台
 apps/       模块源码占位目录（当前为空，由模块侧维护）
 tools/      构建与备份脚本
-module-platform.md   模块与壳的契约（返回、生命周期、存储、能力桥）
 ```
 
 ## 编译
