@@ -1,32 +1,18 @@
 # Docklet 壳
 
-Android 壳：负责模块的安装、运行、隔离、存储和恢复。模块是独立的 HTML 包，
-壳本身不预置任何模块，安装方式有两种：
-
-```text
-1. 从存储桶拉取安装：壳读取在线目录，按条目下载 .pkg 后安装
-2. 本地导入安装：在「模块 → 本地安装」里粘贴 .pkg 链接，或从文件管理器选择本地包
-```
-
-## 目录
-
-```text
-shell/      Android 工程（Gradle）：app 是壳本身，core 是模块平台
-apps/       模块源码占位目录（当前为空，由模块侧维护）
-tools/      构建与备份脚本
-```
-
 ## 编译
 
-需要 JDK 17 与 Android SDK（compileSdk 34）。
+需要 **JDK 17** 与 **Android SDK**（compileSdk 34）。
 
 ```powershell
-$env:JAVA_HOME   = "<jdk17 路径>"
-$env:ANDROID_HOME = "<android sdk 路径>"
-
-# 先写 shell/local.properties
+# 1. 让 Gradle 找到 Android SDK
+#    在 shell/local.properties 里写：
 sdk.dir=<android sdk 路径>
 
+# 2. 指向 JDK 17
+$env:JAVA_HOME = "<jdk17 路径>"
+
+# 3. 构建
 powershell -ExecutionPolicy Bypass -File tools/build.ps1
 ```
 
@@ -36,15 +22,10 @@ powershell -ExecutionPolicy Bypass -File tools/build.ps1
 dist/docklet-shell-0.1.0-debug.apk
 ```
 
-`apps/` 为空时编译得到“空壳”，装到手机后按上面的两种方式安装模块。
-
 ## 安装
 
 ```powershell
 adb install -r dist/docklet-shell-0.1.0-debug.apk
 ```
 
-## 与模块的关系
-
-- 模块源码在 `apps/<id>/`，由模块侧负责，壳不修改
-- 壳扫描 `apps/*/module.json` 把模块打进 APK（仓库里该目录为空）
+`apps/` 为空时编译得到空壳；模块通过在线目录或本地导入安装。
