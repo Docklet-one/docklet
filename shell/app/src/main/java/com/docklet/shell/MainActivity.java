@@ -2667,7 +2667,9 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 if (cancelled[0]) return;
                 if (error == null) return;
                 if (ModuleException.VERSION_CONFLICT.equals(error.getCode())) {
-                    dialog.failure(IconView.Type.INFO, "无需安装", name, "已经是最新版本了");
+                    dialog.dismiss();
+                    showSameVersionDialog();
+                    return;
                 } else if (ModuleException.VERSION_DOWNGRADE.equals(error.getCode())) {
                     dialog.dismiss();
                     String[] versions = downgradeVersions(error);
@@ -2903,6 +2905,68 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     }
 
     /** 装旧版本前的确认：居中弹窗，和安装弹窗同一套头部。 */
+    /** 同版本安装被拒绝时的说明：只解释原因，不给“覆盖”入口。 */
+    private void showSameVersionDialog() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCancelable(true);
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(20), dp(20), dp(20));
+        content.setBackground(UiKit.rounded(this, UiKit.SURFACE, 24f));
+        content.setElevation(dp(8));
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout tile = new FrameLayout(this);
+        tile.setBackground(UiKit.rounded(this, UiKit.SURFACE_SOFT, 13f));
+        IconView icon = new IconView(this).type(IconView.Type.INFO);
+        icon.setColor(UiKit.INK);
+        tile.addView(icon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        head.addView(tile, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        TextView title = UiKit.text(this, "禁止安装", 17f, UiKit.INK, true);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        titleParams.leftMargin = dp(12);
+        head.addView(title, titleParams);
+        content.addView(head);
+
+        TextView reason = UiKit.text(this, "已有相同版本存在", 12.5f, UiKit.DANGER, false);
+        LinearLayout.LayoutParams reasonParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        reasonParams.topMargin = dp(16);
+        content.addView(reason, reasonParams);
+
+        TextView detail = UiKit.text(this, "直接覆盖会删除数据", 12f, UiKit.MUTED, false);
+        LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        detailParams.topMargin = dp(6);
+        content.addView(detail, detailParams);
+
+        TextView ok = UiKit.secondaryButton(this, "知道了");
+        ok.setOnClickListener(view -> dialog.dismiss());
+        LinearLayout.LayoutParams okParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+        );
+        okParams.topMargin = dp(20);
+        content.addView(ok, okParams);
+
+        dialog.setContentView(content);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setGravity(Gravity.CENTER);
+        }
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setLayout(dp(320), ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
     /** 从 .pkg 里读出 module.json（降级时用来显示真实名称/图标/版本）。 */
     private com.docklet.platform.ModuleManifest readPkgManifest(java.io.File pkg) {
         if (pkg == null || !pkg.isFile()) return null;
