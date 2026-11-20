@@ -288,7 +288,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         row.setOrientation(HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(10), 0, dp(10));
-        TextView name = UiKit.text(activity, label, 12.5f, UiKit.MUTED, false);
+        TextView name = UiKit.text(activity, label, 12.5f, UiKit.INK, false);
         row.addView(name, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ));
@@ -318,7 +318,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         row.addView(name, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
         ));
-        TextView contactView = UiKit.text(activity, contact, 12.5f, UiKit.MUTED, false);
+        TextView contactView = UiKit.text(activity, contact, 12.5f, UiKit.INK, false);
         contactView.setGravity(Gravity.END);
         contactView.setMaxLines(1);
         contactView.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -333,18 +333,27 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
     private View capabilityGrid() {
         FlowLayout grid = new FlowLayout(activity);
         grid.setGap(dp(5), dp(5));
+        boolean installed = isInstalled() || isUpdate();
         for (String capability : app.capabilities()) {
-            grid.addView(capabilityChip(capabilityLabel(capability)));
+            grid.addView(capabilityChip(capabilityLabel(capability), installed));
         }
         return grid;
     }
 
-    private TextView capabilityChip(String label) {
-        TextView chip = UiKit.text(activity, "✓ " + label, 9f, UiKit.GREEN, false);
+    private TextView capabilityChip(String label, boolean installed) {
+        TextView chip = UiKit.text(
+                activity,
+                installed ? "✓ " + label : label,
+                9f,
+                installed ? UiKit.GREEN : UiKit.MUTED,
+                false
+        );
         chip.setGravity(Gravity.CENTER);
         chip.setMaxLines(1);
         chip.setPadding(dp(8), dp(5), dp(8), dp(5));
-        chip.setBackground(UiKit.rounded(activity, UiKit.GREEN_SOFT, 7f));
+        if (installed) {
+            chip.setBackground(UiKit.rounded(activity, UiKit.GREEN_SOFT, 7f));
+        }
         chip.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ));
@@ -463,11 +472,11 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         row.setOrientation(HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(10), 0, dp(10));
-        TextView name = UiKit.text(activity, label, 12.5f, UiKit.MUTED, false);
+        TextView name = UiKit.text(activity, label, 12.5f, UiKit.INK, false);
         row.addView(name, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
         ));
-        TextView version = UiKit.text(activity, value, 12.5f, UiKit.MUTED, false);
+        TextView version = UiKit.text(activity, value, 12.5f, UiKit.INK, false);
         LinearLayout.LayoutParams versionParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
