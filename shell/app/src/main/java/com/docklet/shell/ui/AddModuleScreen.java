@@ -111,7 +111,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     private View searchWrap;
     private EditText searchInput;
     private String query = "";
-    private String category = ModuleCategories.DEFAULT_ID;
+    private String category = ModuleCategories.FAVORITES_ID;
     private int activeTab;
     private LinearLayout railHost;
     private ScrollView railScroll;
@@ -169,7 +169,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     /** 进入模块页时选中左栏第一个可见分类（临时 → 收藏）。 */
     public void selectFirstCategory() {
         String first = railOrder.isEmpty()
-                ? ModuleCategories.DEFAULT_ID
+                ? ModuleCategories.FAVORITES_ID
                 : railOrder.get(0);
         category = first;
         query = "";
@@ -477,7 +477,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         if (toolRow != null) {
             toolRow.setVisibility(index == 1 ? View.VISIBLE : View.GONE);
         }
-        category = index == 0 ? ModuleCategories.DEFAULT_ID : RECOMMENDED;
+        category = index == 0 ? ModuleCategories.FAVORITES_ID : RECOMMENDED;
         rebuildBody();
     }
 
@@ -593,7 +593,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         boolean repository = activeTab == 1;
         paneHost.removeAllViews();
         paneHost.setPadding(0, 0, 0, 0);
-        if (!repository && ModuleCategories.DEFAULT_ID.equals(category)) {
+        if (!repository && ModuleCategories.FAVORITES_ID.equals(category)) {
             paneHost.addView(new View(activity), new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, dp(12)
             ));
@@ -632,10 +632,10 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         paneHost.addView(listWrap, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ));
-        if (!repository && !ModuleCategories.DEFAULT_ID.equals(category)) {
-            boolean unclassified = ModuleCategories.UNCLASSIFIED_ID.equals(category);
+        if (!repository && !ModuleCategories.FAVORITES_ID.equals(category)) {
+            boolean unclassified = ModuleCategories.TEMPORARY_ID.equals(category);
             String titleText = unclassified
-                    ? ModuleCategories.UNCLASSIFIED_NAME
+                    ? ModuleCategories.TEMPORARY_NAME
                     : ModuleCategories.nameOf(activity, category);
             TextView listTitle = UiKit.text(
                     activity,
@@ -701,7 +701,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
             if (tile instanceof FrameLayout && ((FrameLayout) tile).getChildCount() > 0) {
                 View icon = ((FrameLayout) tile).getChildAt(0);
                 if (icon instanceof IconView) {
-                    boolean signpost = ModuleCategories.DEFAULT_ID.equals(entry.getKey());
+                    boolean signpost = ModuleCategories.FAVORITES_ID.equals(entry.getKey());
                     ((IconView) icon).setColor(signpost
                             ? SIGNAL_RED
                             : selected ? UiKit.INK : UiKit.MUTED);
@@ -840,7 +840,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     private List<InstalledModule> unclassifiedModules() {
         List<InstalledModule> result = new ArrayList<>();
         for (InstalledModule module : installed.values()) {
-            if (ModuleCategories.UNCLASSIFIED_ID.equals(
+            if (ModuleCategories.TEMPORARY_ID.equals(
                     ModuleCategories.categoryOf(activity, module.id()))) {
                 result.add(module);
             }
@@ -899,37 +899,37 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         if (unclassifiedCount > 0) {
             View inbox = categoryIconButton(
                     IconView.Type.FOLDER_QUERY,
-                    ModuleCategories.UNCLASSIFIED_NAME,
-                    ModuleCategories.UNCLASSIFIED_ID.equals(category),
+                    ModuleCategories.TEMPORARY_NAME,
+                    ModuleCategories.TEMPORARY_ID.equals(category),
                     0,
                     UNCLASSIFIED_SOFT,
-                    view -> selectCategory(ModuleCategories.UNCLASSIFIED_ID),
+                    view -> selectCategory(ModuleCategories.TEMPORARY_ID),
                     view -> {
                         openCategoryPage();
                         return true;
                     }
             );
             side.addView(inbox);
-            railButtons.put(ModuleCategories.UNCLASSIFIED_ID, inbox);
-            railColors.put(ModuleCategories.UNCLASSIFIED_ID, UNCLASSIFIED_SOFT);
-            railOrder.add(ModuleCategories.UNCLASSIFIED_ID);
+            railButtons.put(ModuleCategories.TEMPORARY_ID, inbox);
+            railColors.put(ModuleCategories.TEMPORARY_ID, UNCLASSIFIED_SOFT);
+            railOrder.add(ModuleCategories.TEMPORARY_ID);
         }
         View home = categoryIconButton(
                 IconView.Type.SIGNPOST,
-                ModuleCategories.DEFAULT_NAME,
-                ModuleCategories.DEFAULT_ID.equals(category),
+                ModuleCategories.FAVORITES_NAME,
+                ModuleCategories.FAVORITES_ID.equals(category),
                 0,
                 DEFAULT_SOFT,
-                view -> selectCategory(ModuleCategories.DEFAULT_ID),
+                view -> selectCategory(ModuleCategories.FAVORITES_ID),
                 view -> {
                     openCategoryPage();
                     return true;
                 }
         );
         side.addView(home);
-        railButtons.put(ModuleCategories.DEFAULT_ID, home);
-        railColors.put(ModuleCategories.DEFAULT_ID, DEFAULT_SOFT);
-        railOrder.add(ModuleCategories.DEFAULT_ID);
+        railButtons.put(ModuleCategories.FAVORITES_ID, home);
+        railColors.put(ModuleCategories.FAVORITES_ID, DEFAULT_SOFT);
+        railOrder.add(ModuleCategories.FAVORITES_ID);
         setRailIconColor(home, SIGNAL_RED);
 
         if (!categories.isEmpty()) {
@@ -1105,7 +1105,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     }
 
     private void buildInstalledList(LinearLayout list) {
-        boolean dashboard = ModuleCategories.DEFAULT_ID.equals(category);
+        boolean dashboard = ModuleCategories.FAVORITES_ID.equals(category);
         if (dashboard && query.isEmpty()) {
             List<InstalledModule> recent = recentModules();
             List<InstalledModule> favorites = favoriteModules();
@@ -1246,7 +1246,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                 activity, ModuleCategories.categoryOf(activity, module.id())
         );
         if (currentCategory == null || currentCategory.isEmpty()) {
-            currentCategory = ModuleCategories.DEFAULT_NAME;
+            currentCategory = ModuleCategories.FAVORITES_NAME;
         }
         root.addView(menuRow("详情", "查看模块详细信息", false, true, () -> {
             sheet.dismiss();
@@ -1497,7 +1497,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         TextView desc = UiKit.text(
                 activity,
                 "当前分类 · " + (currentName == null || currentName.isEmpty()
-                        ? ModuleCategories.UNCLASSIFIED_NAME : currentName),
+                        ? ModuleCategories.TEMPORARY_NAME : currentName),
                 12f,
                 UiKit.MUTED,
                 false
@@ -1662,8 +1662,8 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
             String name = ModuleCategories.nameOf(activity, category);
             return name == null || name.isEmpty() ? "分类" : name;
         }
-        if (ModuleCategories.UNCLASSIFIED_ID.equals(category)) {
-            return ModuleCategories.UNCLASSIFIED_NAME;
+        if (ModuleCategories.TEMPORARY_ID.equals(category)) {
+            return ModuleCategories.TEMPORARY_NAME;
         }
         return "最近";
     }
@@ -1973,7 +1973,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     }
 
     /** Pseudo category id used as the sort scope of the favourites grid. */
-    private static final String FAVORITES_SCOPE = "favorites";
+    private static final String FAVORITES_SCOPE = "favorites_list";
     private static final String RECOMMENDED = "推荐";
 
     private static final int DIALOG_TILE_DANGER = 0xFFF3E1DC;
@@ -2470,7 +2470,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         if (pageOrderChanged && pageDraft != null) {
             List<String> ids = new ArrayList<>();
             for (ModuleCategories.Category item : pageDraft) {
-                if (!ModuleCategories.DEFAULT_ID.equals(item.id)) ids.add(item.id);
+                if (!ModuleCategories.FAVORITES_ID.equals(item.id)) ids.add(item.id);
             }
             ModuleCategories.reorder(activity, ids);
             rebuildBody();
@@ -2680,12 +2680,12 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         row.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 16f));
 
         row.addView(builtinCategoryItem(
-                IconView.Type.SIGNPOST, DEFAULT_SOFT, ModuleCategories.DEFAULT_NAME
+                IconView.Type.SIGNPOST, DEFAULT_SOFT, ModuleCategories.FAVORITES_NAME
         ));
         LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(dp(8), dp(30));
         row.addView(new View(activity), gap);
         row.addView(builtinCategoryItem(
-                IconView.Type.FOLDER_QUERY, UNCLASSIFIED_SOFT, ModuleCategories.UNCLASSIFIED_NAME
+                IconView.Type.FOLDER_QUERY, UNCLASSIFIED_SOFT, ModuleCategories.TEMPORARY_NAME
         ));
         row.addView(new View(activity), new LinearLayout.LayoutParams(0, dp(30), 1f));
 
@@ -2949,7 +2949,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
             }
             hideKeyboard(input);
             holder[0].dismiss();
-            category = ModuleCategories.DEFAULT_ID;
+            category = ModuleCategories.FAVORITES_ID;
             rebuildBody();
             openCategoryPage();
         });
@@ -3086,14 +3086,14 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                 count == 0 ? "该分类下还没有模块" : count + " 个模块会被移出",
                 count == 0
                         ? "删除后无法恢复，之后可以再新建同名分类。"
-                        : "这些模块会回到「" + ModuleCategories.UNCLASSIFIED_NAME
+                        : "这些模块会回到「" + ModuleCategories.TEMPORARY_NAME
                                 + "」，**模块本身不会被卸载**，之后还能重新归类。",
                 "删除分类",
                 IconView.Type.TRASH,
                 true,
                 () -> {
                     ModuleCategories.delete(activity, item.id);
-                    category = ModuleCategories.DEFAULT_ID;
+                    category = ModuleCategories.FAVORITES_ID;
                     rebuildBody();
                     openCategoryPage();
                 }

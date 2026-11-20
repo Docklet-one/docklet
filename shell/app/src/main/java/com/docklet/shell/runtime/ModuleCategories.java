@@ -12,13 +12,14 @@ import java.util.Map;
 /** Category ids are stable; names are only labels. */
 public final class ModuleCategories {
 
-    public static final String DEFAULT_ID = "default";
     /** 预置项：收藏夹入口（最近 + 收藏），不是可归属的分类。 */
-    public static final String DEFAULT_NAME = "收藏";
-    public static final String UNCLASSIFIED_ID = "__unclassified__";
-    public static final String UNCLASSIFIED_NAME = "临时";
-    public static final String DEFAULT_ICON = "home";
-    public static final String UNCLASSIFIED_ICON = "inbox";
+    public static final String FAVORITES_ID = "favorites";
+    public static final String FAVORITES_NAME = "收藏";
+    public static final String FAVORITES_ICON = "heart";
+    /** 预置项：未归类模块的容器，新装模块默认落在这里。 */
+    public static final String TEMPORARY_ID = "temporary";
+    public static final String TEMPORARY_NAME = "临时";
+    public static final String TEMPORARY_ICON = "inbox";
     public static final String FALLBACK_ICON = "folder";
     public static final int MAX_CATEGORIES = 7;
 
@@ -27,6 +28,8 @@ public final class ModuleCategories {
     private static final String KEY_DEFAULT_NAME = "default_category_name";
     private static final String KEY_ASSIGN = "module_category:";
     private static final String KEY_ORDER = "module_category_order:";
+    private static final String MIGRATED = "category_ids_renamed_v1";
+    private static volatile boolean migrated;
 
     public static final class Category {
         public final String id;
@@ -43,13 +46,45 @@ public final class ModuleCategories {
     private ModuleCategories() {
     }
 
+    /**
+     * Older builds stored the preset ids as "default" / "__unclassified__".
+     * Rewrite them once so existing installs keep their categories.
+     */
+    private static synchronized void ensureMigrated(Context context) {
+        if (migrated || context == null) return;
+        migrated = true;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (prefs.getBoolean(MIGRATED, false)) return;
+        Map<String, ?> all = prefs.getAll();
+        SharedPreferences.Editor editor = prefs.edit();
+        for (Map.Entry<String, ?> entry : all.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            if (!(value instanceof String)) continue;
+            String text = (String) value;
+            String nextKey = key
+                    .replace(":default", ":" + FAVORITES_ID)
+                    .replace(":__unclassified__", ":" + TEMPORARY_ID);
+            String nextValue = "default".equals(text) ? FAVORITES_ID
+                    : "__unclassified__".equals(text) ? TEMPORARY_ID
+                    : text;
+            if (!nextKey.equals(key)) {
+                editor.remove(key);
+                editor.putString(nextKey, nextValue);
+            } else if (!nextValue.equals(text)) {
+                editor.putString(key, nextValue);
+            }
+        }
+        editor.remove(KEY_DEFAULT_NAME);
+        editor.putBoolean(MIGRATED, true);
+        editor.apply();
+    }
+
     public static List<Category> list(Context context) {
+        ensureMigrated(context);
         List<Category> result = new ArrayList<>();
         if (context == null) return result;
-        String defaultName = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_DEFAULT_NAME, DEFAULT_NAME);
-        if (defaultName == null || defaultName.trim().isEmpty()) defaultName = DEFAULT_NAME;
-        result.add(new Category(DEFAULT_ID, defaultName.trim(), DEFAULT_ICON));
+        result.add(new Category(FAVORITES_ID, FAVORITES_NAME, FAVORITES_ICON));
         String raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getString(KEY_CUSTOM, "");
         if (raw == null || raw.isEmpty()) return result;
@@ -69,7 +104,7 @@ public final class ModuleCategories {
     public static List<Category> customList(Context context) {
         List<Category> result = new ArrayList<>();
         for (Category category : list(context)) {
-            if (!DEFAULT_ID.equals(category.id)) result.add(category);
+            if (!FAVORITES_ID.equals(category.id)) result.add(category);
         }
         return result;
     }
@@ -83,11 +118,11 @@ public final class ModuleCategories {
     }
 
     public static String nameOf(Context context, String id) {
-        if (UNCLASSIFIED_ID.equals(id)) return UNCLASSIFIED_NAME;
+        if (TEMPORARY_ID.equals(id)) return TEMPORARY_NAME;
         for (Category category : list(context)) {
             if (category.id.equals(id)) return category.name;
         }
-        return DEFAULT_NAME;
+        return FAVORITES_NAME;
     }
 
     public static String add(Context context, String rawName) {
@@ -117,7 +152,7 @@ public final class ModuleCategories {
             }
         }
         if (!found) return false;
-        if (DEFAULT_ID.equals(id)) {
+        if (FAVORITES_ID.equals(id)) {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                     .edit().putString(KEY_DEFAULT_NAME, name).apply();
         } else {
@@ -133,7 +168,7 @@ public final class ModuleCategories {
     }
 
     public static int delete(Context context, String id) {
-        if (context == null || DEFAULT_ID.equals(id)) return 0;
+        if (context == null || FAVORITES_ID.equals(id)) return 0;
         List<Category> categories = list(context);
         boolean found = false;
         List<Category> kept = new ArrayList<>();
@@ -167,11 +202,11 @@ public final class ModuleCategories {
     }
 
     public static boolean moveUp(Context context, String id) {
-        if (context == null || id == null || DEFAULT_ID.equals(id)) return false;
+        if (context == null || id == null || FAVORITES_ID.equals(id)) return false;
         List<Category> categories = list(context);
         int customIndex = 0;
         for (Category category : categories) {
-            if (DEFAULT_ID.equals(category.id)) continue;
+            if (FAVORITES_ID.equals(category.id)) continue;
             if (category.id.equals(id)) {
                 if (customIndex == 0) return false;
                 break;
@@ -180,7 +215,7 @@ public final class ModuleCategories {
         }
         List<Category> custom = new ArrayList<>();
         for (Category category : categories) {
-            if (!DEFAULT_ID.equals(category.id)) custom.add(category);
+            if (!FAVORITES_ID.equals(category.id)) custom.add(category);
         }
         int index = -1;
         for (int i = 0; i < custom.size(); i += 1) {
@@ -198,38 +233,39 @@ public final class ModuleCategories {
         List<Category> byId = list(context);
         List<Category> ordered = new ArrayList<>();
         for (String id : orderedIds) {
-            if (DEFAULT_ID.equals(id)) continue;
+            if (FAVORITES_ID.equals(id)) continue;
             for (Category category : byId) {
                 if (category.id.equals(id) && !ordered.contains(category)) ordered.add(category);
             }
         }
         for (Category category : byId) {
-            if (!DEFAULT_ID.equals(category.id) && !ordered.contains(category)) ordered.add(category);
+            if (!FAVORITES_ID.equals(category.id) && !ordered.contains(category)) ordered.add(category);
         }
         saveCustom(context, ordered);
     }
 
     public static String categoryOf(Context context, String moduleId) {
-        return categoryOf(context, moduleId, UNCLASSIFIED_ID);
+        return categoryOf(context, moduleId, TEMPORARY_ID);
     }
 
     public static String categoryOf(Context context, String moduleId, String fallback) {
-        if (context == null || moduleId == null) return UNCLASSIFIED_ID;
+        ensureMigrated(context);
+        if (context == null || moduleId == null) return TEMPORARY_ID;
         String id = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_ASSIGN + moduleId, UNCLASSIFIED_ID);
-        if (id == null || id.isEmpty() || DEFAULT_ID.equals(id) || UNCLASSIFIED_ID.equals(id)) {
-            return UNCLASSIFIED_ID;
+                .getString(KEY_ASSIGN + moduleId, TEMPORARY_ID);
+        if (id == null || id.isEmpty() || FAVORITES_ID.equals(id) || TEMPORARY_ID.equals(id)) {
+            return TEMPORARY_ID;
         }
         for (Category category : customList(context)) {
             if (category.id.equals(id)) return id;
         }
-        return fallback == null ? UNCLASSIFIED_ID : fallback;
+        return fallback == null ? TEMPORARY_ID : fallback;
     }
 
     public static void setCategory(Context context, String moduleId, String categoryId) {
         if (context == null || moduleId == null) return;
         if (categoryId == null || categoryId.isEmpty()
-                || DEFAULT_ID.equals(categoryId) || UNCLASSIFIED_ID.equals(categoryId)) {
+                || FAVORITES_ID.equals(categoryId) || TEMPORARY_ID.equals(categoryId)) {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                     .edit().remove(KEY_ASSIGN + moduleId).apply();
             return;
@@ -307,7 +343,7 @@ public final class ModuleCategories {
     }
 
     public static boolean setIcon(Context context, String id, String icon) {
-        if (context == null || id == null || DEFAULT_ID.equals(id)) return false;
+        if (context == null || id == null || FAVORITES_ID.equals(id)) return false;
         List<Category> categories = customList(context);
         boolean found = false;
         List<Category> updated = new ArrayList<>();
@@ -337,7 +373,7 @@ public final class ModuleCategories {
     private static void saveCustom(Context context, List<Category> categories) {
         StringBuilder joined = new StringBuilder();
         for (Category category : categories) {
-            if (DEFAULT_ID.equals(category.id)) continue;
+            if (FAVORITES_ID.equals(category.id)) continue;
             if (joined.length() > 0) joined.append('\n');
             joined.append(category.id).append('\t').append(category.name)
                     .append('\t').append(category.icon);
