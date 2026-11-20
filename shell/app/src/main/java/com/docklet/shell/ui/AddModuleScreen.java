@@ -2252,7 +2252,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         url.setGravity(Gravity.TOP | Gravity.START);
         url.setTextSize(13f);
         url.setTextColor(UiKit.INK);
-        url.setHint("http://192.168.1.10:8791/app.pkg");
+        url.setHint("例如：https://app.docklet.cn/app.pkg");
         url.setHintTextColor(UiKit.FAINT);
         url.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_VARIATION_URI
@@ -2319,11 +2319,18 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         fileSubParams.bottomMargin = dp(10);
         filePane.addView(fileSub, fileSubParams);
 
+        // 上传在前、校验在后；按钮沿用「下载并安装」的实心样式。
+        TextView pick = dialogButton("选择本地 .pkg", DIALOG_BUTTON_SOLID);
+        LinearLayout.LayoutParams pickParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(46)
+        );
+        filePane.addView(pick, pickParams);
+
         TextView fileShaLabel = UiKit.text(activity, "校验 sha256（可选）", 11.5f, UiKit.INK, true);
         LinearLayout.LayoutParams fileShaLabelParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        fileShaLabelParams.topMargin = dp(14);
+        fileShaLabelParams.topMargin = dp(16);
         filePane.addView(fileShaLabel, fileShaLabelParams);
 
         EditText fileSha = shaField();
@@ -2341,7 +2348,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         fileError.setVisibility(View.GONE);
         filePane.addView(fileError, fileErrorParams);
 
-        filePane.addView(menuRow("选择本地 .pkg", "从文件管理器选择安装包", false, true, () -> {
+        pick.setOnClickListener(view -> {
             String shaValue = fileSha.getText().toString().trim();
             if (!shaValue.isEmpty() && !looksLikeSha256(shaValue)) {
                 fileError.setText("sha256 应为 64 位十六进制");
@@ -2351,7 +2358,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
             hideKeyboard(url);
             onBack.run();
             listener.onPickFile(shaValue);
-        }));
+        });
 
         // tab 切换：只切内容，输入值留在各自视图里
         final Runnable paintTabs = () -> {
