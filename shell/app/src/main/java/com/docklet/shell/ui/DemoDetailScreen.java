@@ -34,7 +34,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
     private final DemoApp app;
     private String state;
     private String installedVersion;
-    private final String previousVersion;
+    private String previousVersion;
     private final Listener listener;
     private LinearLayout contentHost;
     private View actionBar;
@@ -83,8 +83,14 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
     }
 
     public void setState(String state, String installedVersion) {
+        setState(state, installedVersion, previousVersion);
+    }
+
+    /** 安装/更新/回滚之后同步版本信息，包括“上一版”这一行。 */
+    public void setState(String state, String installedVersion, String previousVersion) {
         this.state = state == null ? "" : state;
         this.installedVersion = installedVersion;
+        this.previousVersion = previousVersion;
         if (contentHost != null) {
             contentHost.removeAllViews();
             buildContent(contentHost);

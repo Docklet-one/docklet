@@ -995,7 +995,11 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     public void onInstall() {
                         installDemoApp(app, module -> {
                             if (screenRef[0] != null) {
-                                screenRef[0].setState("已安装", module.version());
+                                screenRef[0].setState(
+                                        "已安装",
+                                        module.version(),
+                                        module.previousVersion()
+                                );
                             }
                             if (inventory != null) {
                                 inventory.refresh(true, modules -> refreshScreens(modules));
