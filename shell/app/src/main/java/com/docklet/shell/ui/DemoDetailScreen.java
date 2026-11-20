@@ -260,9 +260,6 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
             content.addView(detailMuted("无额外能力"));
         } else {
             content.addView(capabilityGrid());
-            content.addView(detailMuted(isInstalled()
-                    ? "已按安装清单校验生效"
-                    : "作者声明，安装后校验"));
         }
     }
 
@@ -330,11 +327,6 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         ));
         wrap.addView(row);
 
-        View divider = new View(activity);
-        divider.setBackgroundColor(UiKit.LINE);
-        wrap.addView(divider, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(1)
-        ));
         return wrap;
     }
 
