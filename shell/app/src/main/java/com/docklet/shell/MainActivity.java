@@ -125,6 +125,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private AddModuleScreen demoDetailOrigin;
     /** The detail page currently on screen (null when closed). */
     private DemoDetailScreen demoDetailScreen;
+    /** 详情页当前展示的目录条目 id（用于卸载后同步状态）。 */
+    private String demoDetailId;
     private AddModuleScreen detailOriginAdd;
     private Runnable pendingModuleReturn;
     private boolean uninstallFromAdd;
@@ -1045,6 +1047,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         );
         screenRef[0] = screen;
         demoDetailScreen = screen;
+        demoDetailId = app.id();
         showOverlay(screen);
     }
 
@@ -1070,6 +1073,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         AddModuleScreen origin = demoDetailOrigin;
         demoDetailOrigin = null;
         demoDetailScreen = null;
+        demoDetailId = null;
         pendingDemoAdd = null;
         boolean backHome = demoDetailReturnHome;
         demoDetailReturnHome = false;
@@ -3243,6 +3247,27 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             home.refreshModules(remaining);
         } else {
             showHome();
+        }
+        // 在线列表和详情页也持有一份“已安装”状态，卸载后必须一起刷新，
+        // 否则会残留“已安装”、点打开打不开、再点卸载又报未安装。
+        refreshScreens(remaining);
+        // inventory 是在线列表新建时的数据源，也要重新读一次，
+        // 否则下次打开在线模块仍是旧的“已安装”。
+        if (inventory != null) {
+            inventory.refresh(true, modules -> refreshScreens(modules));
+        }
+        if (demoDetailScreen != null && demoDetailId != null) {
+            InstalledModule now = null;
+            for (InstalledModule item : remaining) {
+                if (demoDetailId.equals(item.id())) {
+                    now = item;
+                    break;
+                }
+            }
+            demoDetailScreen.setState(
+                    now == null ? "" : "已安装",
+                    now == null ? null : now.version()
+            );
         }
     }
 
