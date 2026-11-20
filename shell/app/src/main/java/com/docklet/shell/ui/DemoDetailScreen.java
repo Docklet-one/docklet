@@ -206,9 +206,31 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         String intro = app.description().isEmpty() ? app.tagline() : app.description();
         if (!intro.isEmpty()) {
             content.addView(section("简介", "ABOUT"));
-            TextView description = UiKit.text(activity, intro, 12.5f, UiKit.MUTED, false);
+            TextView description = UiKit.text(activity, intro, 12.5f, UiKit.INK, false);
             description.setLineSpacing(dp(2), 1.35f);
+            description.setMaxLines(2);
+            description.setEllipsize(android.text.TextUtils.TruncateAt.END);
             content.addView(description);
+            TextView toggle = UiKit.text(activity, "展开", 12f, UiKit.ACCENT_DEEP, true);
+            toggle.setPadding(0, dp(6), 0, 0);
+            toggle.setVisibility(View.GONE);
+            content.addView(toggle);
+            description.post(() -> {
+                android.text.Layout layout = description.getLayout();
+                boolean overflow = layout != null
+                        && layout.getLineCount() > 2;
+                if (!overflow) return;
+                toggle.setVisibility(View.VISIBLE);
+                final boolean[] expanded = {false};
+                toggle.setOnClickListener(view -> {
+                    expanded[0] = !expanded[0];
+                    description.setMaxLines(expanded[0] ? Integer.MAX_VALUE : 2);
+                    description.setEllipsize(expanded[0]
+                            ? null
+                            : android.text.TextUtils.TruncateAt.END);
+                    toggle.setText(expanded[0] ? "收起" : "展开");
+                });
+            });
         }
 
         content.addView(section("作者", "AUTHOR"));
@@ -247,13 +269,13 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
     private void addStat(LinearLayout parent, String label, String value) {
         LinearLayout stat = new LinearLayout(activity);
         stat.setOrientation(VERTICAL);
-        stat.setGravity(Gravity.CENTER);
+        stat.setGravity(Gravity.START);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         TextView caption = UiKit.text(activity, label, 10.5f, UiKit.FAINT, false);
-        caption.setGravity(Gravity.CENTER);
+        caption.setGravity(Gravity.START);
         stat.addView(caption);
         TextView content = UiKit.text(activity, value, 12.5f, UiKit.INK, false);
-        content.setGravity(Gravity.CENTER);
+        content.setGravity(Gravity.START);
         content.setMaxLines(1);
         content.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams valueParams = new LinearLayout.LayoutParams(
@@ -295,7 +317,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         row.setOrientation(HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(8), 0, dp(11));
-        TextView name = UiKit.text(activity, author, 15f, UiKit.INK, true);
+        TextView name = UiKit.text(activity, author, 12.5f, UiKit.INK, true);
         row.addView(name, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
         ));
@@ -477,7 +499,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         params.topMargin = dp(24);
         params.bottomMargin = dp(8);
         row.setLayoutParams(params);
-        TextView title = UiKit.text(activity, label, 10.5f, UiKit.MUTED, true);
+        TextView title = UiKit.text(activity, label, 11f, UiKit.MUTED, true);
         row.addView(title, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
         ));
