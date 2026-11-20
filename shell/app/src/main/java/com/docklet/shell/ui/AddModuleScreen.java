@@ -406,6 +406,37 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         chip.setContentDescription(active ? "只看未安装（已开启）" : "只看未安装");
     }
 
+    private TextView tabPill(String label) {
+        TextView pill = UiKit.text(activity, label, 12.5f, UiKit.MUTED, true);
+        pill.setGravity(Gravity.CENTER);
+        pill.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 14f));
+        return pill;
+    }
+
+    private void paintTab(TextView pill, boolean active) {
+        if (pill == null) return;
+        pill.setTextColor(active ? UiKit.INK : UiKit.MUTED);
+        pill.setBackground(UiKit.rounded(
+                activity,
+                active ? UiKit.ACCENT_SOFT : UiKit.SURFACE,
+                14f
+        ));
+    }
+
+    private EditText shaField() {
+        EditText field = new EditText(activity);
+        field.setSingleLine(true);
+        field.setTextSize(12f);
+        field.setTextColor(UiKit.INK);
+        field.setHint("64 位十六进制，可留空");
+        field.setHintTextColor(UiKit.FAINT);
+        field.setInputType(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        field.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 14f));
+        field.setPadding(dp(14), 0, dp(14), 0);
+        return field;
+    }
+
     private static boolean looksLikeSha256(String value) {
         return value != null && value.matches("^[0-9a-fA-F]{64}$");
     }
@@ -2179,16 +2210,40 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ));
 
-        body.addView(UiKit.text(activity, "从链接安装", 15f, UiKit.INK, true));
-        TextView sub = UiKit.text(
+        // 两个 tab：链接安装 / 文件安装
+        LinearLayout tabs = new LinearLayout(activity);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams tabsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)
+        );
+        tabsParams.bottomMargin = dp(16);
+        body.addView(tabs, tabsParams);
+
+        TextView urlTab = tabPill("链接安装");
+        TextView fileTab = tabPill("文件安装");
+        LinearLayout.LayoutParams tabParams = new LinearLayout.LayoutParams(0, dp(40), 1f);
+        tabs.addView(urlTab, tabParams);
+        LinearLayout.LayoutParams fileTabParams = new LinearLayout.LayoutParams(0, dp(40), 1f);
+        fileTabParams.leftMargin = dp(8);
+        tabs.addView(fileTab, fileTabParams);
+
+        LinearLayout urlPane = new LinearLayout(activity);
+        urlPane.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout filePane = new LinearLayout(activity);
+        filePane.setOrientation(LinearLayout.VERTICAL);
+        filePane.setVisibility(View.GONE);
+        body.addView(urlPane);
+        body.addView(filePane);
+
+        // ---------- 链接安装 ----------
+        TextView urlSub = UiKit.text(
                 activity, "粘贴 .pkg 下载地址，下载完成后自动安装", 11.5f, UiKit.MUTED, false
         );
-        LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams urlSubParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        subParams.topMargin = dp(4);
-        subParams.bottomMargin = dp(12);
-        body.addView(sub, subParams);
+        urlSubParams.bottomMargin = dp(10);
+        urlPane.addView(urlSub, urlSubParams);
 
         EditText url = new EditText(activity);
         url.setSingleLine(false);
@@ -2204,41 +2259,44 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         url.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 14f));
         url.setPadding(dp(14), dp(12), dp(14), dp(12));
-        body.addView(url, new LinearLayout.LayoutParams(
+        urlPane.addView(url, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(78)
         ));
 
-        EditText sha = new EditText(activity);
-        sha.setSingleLine(true);
-        sha.setTextSize(12.5f);
-        sha.setTextColor(UiKit.INK);
-        sha.setHint("64 位十六进制，可留空");
-        sha.setHintTextColor(UiKit.FAINT);
-        sha.setInputType(InputType.TYPE_CLASS_TEXT
-                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        sha.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 14f));
-        sha.setPadding(dp(14), 0, dp(14), 0);
-
-        TextView error = UiKit.text(activity, "", 11.5f, UiKit.DANGER, false);
-        LinearLayout.LayoutParams errorParams = new LinearLayout.LayoutParams(
+        TextView urlShaLabel = UiKit.text(activity, "校验 sha256（可选）", 11.5f, UiKit.INK, true);
+        LinearLayout.LayoutParams urlShaLabelParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        errorParams.topMargin = dp(8);
-        error.setVisibility(View.GONE);
-        body.addView(error, errorParams);
+        urlShaLabelParams.topMargin = dp(14);
+        urlPane.addView(urlShaLabel, urlShaLabelParams);
+
+        EditText urlSha = shaField();
+        LinearLayout.LayoutParams urlShaParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+        );
+        urlShaParams.topMargin = dp(8);
+        urlPane.addView(urlSha, urlShaParams);
+
+        TextView urlError = UiKit.text(activity, "", 11.5f, UiKit.DANGER, false);
+        LinearLayout.LayoutParams urlErrorParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        urlErrorParams.topMargin = dp(8);
+        urlError.setVisibility(View.GONE);
+        urlPane.addView(urlError, urlErrorParams);
 
         TextView install = dialogButton("下载并安装", DIALOG_BUTTON_SOLID);
         install.setOnClickListener(view -> {
             String link = url.getText().toString().trim();
             if (!link.startsWith("https://") && !link.startsWith("http://")) {
-                error.setText("请输入 http:// 或 https:// 开头的地址");
-                error.setVisibility(View.VISIBLE);
+                urlError.setText("请输入 http:// 或 https:// 开头的地址");
+                urlError.setVisibility(View.VISIBLE);
                 return;
             }
-            String shaValue = sha.getText().toString().trim();
+            String shaValue = urlSha.getText().toString().trim();
             if (!shaValue.isEmpty() && !looksLikeSha256(shaValue)) {
-                error.setText("sha256 应为 64 位十六进制");
-                error.setVisibility(View.VISIBLE);
+                urlError.setText("sha256 应为 64 位十六进制");
+                urlError.setVisibility(View.VISIBLE);
                 return;
             }
             hideKeyboard(url);
@@ -2249,22 +2307,45 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(46)
         );
         installParams.topMargin = dp(14);
-        body.addView(install, installParams);
+        urlPane.addView(install, installParams);
 
-        TextView or = UiKit.text(activity, "或", 11f, UiKit.FAINT, false);
-        or.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams orParams = new LinearLayout.LayoutParams(
+        // ---------- 文件安装 ----------
+        TextView fileSub = UiKit.text(
+                activity, "选择手机里的 .pkg 安装包", 11.5f, UiKit.MUTED, false
+        );
+        LinearLayout.LayoutParams fileSubParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        orParams.topMargin = dp(20);
-        orParams.bottomMargin = dp(14);
-        body.addView(or, orParams);
+        fileSubParams.bottomMargin = dp(10);
+        filePane.addView(fileSub, fileSubParams);
 
-        body.addView(menuRow("选择本地 .pkg", "从文件管理器选择安装包", false, true, () -> {
-            String shaValue = sha.getText().toString().trim();
+        TextView fileShaLabel = UiKit.text(activity, "校验 sha256（可选）", 11.5f, UiKit.INK, true);
+        LinearLayout.LayoutParams fileShaLabelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        fileShaLabelParams.topMargin = dp(14);
+        filePane.addView(fileShaLabel, fileShaLabelParams);
+
+        EditText fileSha = shaField();
+        LinearLayout.LayoutParams fileShaParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+        );
+        fileShaParams.topMargin = dp(8);
+        filePane.addView(fileSha, fileShaParams);
+
+        TextView fileError = UiKit.text(activity, "", 11.5f, UiKit.DANGER, false);
+        LinearLayout.LayoutParams fileErrorParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        fileErrorParams.topMargin = dp(8);
+        fileError.setVisibility(View.GONE);
+        filePane.addView(fileError, fileErrorParams);
+
+        filePane.addView(menuRow("选择本地 .pkg", "从文件管理器选择安装包", false, true, () -> {
+            String shaValue = fileSha.getText().toString().trim();
             if (!shaValue.isEmpty() && !looksLikeSha256(shaValue)) {
-                error.setText("sha256 应为 64 位十六进制");
-                error.setVisibility(View.VISIBLE);
+                fileError.setText("sha256 应为 64 位十六进制");
+                fileError.setVisibility(View.VISIBLE);
                 return;
             }
             hideKeyboard(url);
@@ -2272,26 +2353,23 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
             listener.onPickFile(shaValue);
         }));
 
-        body.addView(UiKit.text(activity, "校验 sha256（可选）", 12f, UiKit.INK, true));
-        TextView shaHint = UiKit.text(
-                activity,
-                "填写后，链接下载和本地文件都会对照这个指纹校验",
-                11f,
-                UiKit.MUTED,
-                false
-        );
-        LinearLayout.LayoutParams shaHintParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        shaHintParams.topMargin = dp(4);
-        shaHintParams.bottomMargin = dp(8);
-        body.addView(shaHint, shaHintParams);
-
-        LinearLayout.LayoutParams shaParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(46)
-        );
-        shaParams.bottomMargin = dp(8);
-        body.addView(sha, shaParams);
+        // tab 切换：只切内容，输入值留在各自视图里
+        final Runnable paintTabs = () -> {
+            boolean urlActive = urlPane.getVisibility() == View.VISIBLE;
+            paintTab(urlTab, urlActive);
+            paintTab(fileTab, !urlActive);
+        };
+        urlTab.setOnClickListener(view -> {
+            urlPane.setVisibility(View.VISIBLE);
+            filePane.setVisibility(View.GONE);
+            paintTabs.run();
+        });
+        fileTab.setOnClickListener(view -> {
+            urlPane.setVisibility(View.GONE);
+            filePane.setVisibility(View.VISIBLE);
+            paintTabs.run();
+        });
+        paintTabs.run();
 
         TextView note = UiKit.text(
                 activity,
