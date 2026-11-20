@@ -244,7 +244,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         refresh.setOnClickListener(view -> listener.onRefreshCatalog());
         actions.addView(refresh, actionChipSize(0));
         actions.addView(headerChip(IconView.Type.NETWORK, "切换仓库"), actionChipSize(12));
-        View filter = headerChip(IconView.Type.DOWNLOAD, "只看未安装");
+        View filter = headerChip(IconView.Type.FILTER, "只看未安装");
         filter.setOnClickListener(view -> {
             onlyUninstalled = !onlyUninstalled;
             paintFilterChip(filter, onlyUninstalled);

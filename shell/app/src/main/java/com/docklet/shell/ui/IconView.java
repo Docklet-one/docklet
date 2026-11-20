@@ -55,7 +55,8 @@ public final class IconView extends View {
         SHIELD,
         SIGNPOST,
         FOLDER_QUERY,
-        CLOUD_DOWN
+        CLOUD_DOWN,
+        FILTER
     }
 
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -228,6 +229,21 @@ public final class IconView extends View {
                 path.lineTo(10f, 17f);
                 path.lineTo(18.5f, 7.5f);
                 canvas.drawPath(path, stroke);
+                break;
+            case FILTER:
+                // 漏斗：宽口收窄成一段短颈
+                path.moveTo(3.4f, 5f);
+                path.lineTo(15f, 5f);
+                path.lineTo(10.9f, 10.8f);
+                path.lineTo(10.9f, 18.4f);
+                path.lineTo(7.8f, 20f);
+                path.lineTo(7.8f, 10.8f);
+                path.close();
+                canvas.drawPath(path, stroke);
+                // 右侧三条等宽短线，表达“筛选后的结果”
+                line(canvas, 17.2f, 12.2f, 21f, 12.2f);
+                line(canvas, 17.2f, 15.2f, 21f, 15.2f);
+                line(canvas, 17.2f, 18.2f, 21f, 18.2f);
                 break;
             case REFRESH:
                 arc.set(4.8f, 4.8f, 19.2f, 19.2f);
