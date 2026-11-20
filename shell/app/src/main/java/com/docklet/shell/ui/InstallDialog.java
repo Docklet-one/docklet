@@ -20,6 +20,7 @@ import android.widget.TextView;
 public final class InstallDialog {
 
     private static final long AUTO_CLOSE_MS = 1000L;
+    private static final float DIALOG_WIDTH_DP = 320f;
 
     private final Dialog dialog;
     private final TextView stageView;
@@ -56,6 +57,7 @@ public final class InstallDialog {
 
         bar = new ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
         bar.setMax(100);
+        bar.setVisibility(android.view.View.INVISIBLE);
         bar.setProgressTintList(android.content.res.ColorStateList.valueOf(UiKit.ACCENT));
         bar.setProgressBackgroundTintList(
                 android.content.res.ColorStateList.valueOf(UiKit.SURFACE_SOFT)
@@ -75,7 +77,7 @@ public final class InstallDialog {
         content.addView(stageView, stageParams);
 
         doneButton = UiKit.secondaryButton(activity, "完成");
-        doneButton.setVisibility(android.view.View.GONE);
+        doneButton.setVisibility(android.view.View.INVISIBLE);
         doneButton.setOnClickListener(view -> dismiss());
         LinearLayout.LayoutParams doneParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 40)
@@ -87,7 +89,7 @@ public final class InstallDialog {
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             dialog.getWindow().setLayout(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    dp(activity, DIALOG_WIDTH_DP),
                     ViewGroup.LayoutParams.WRAP_CONTENT
             );
         }
@@ -103,6 +105,7 @@ public final class InstallDialog {
         stageView.setText(text);
         stageView.setTextColor(UiKit.MUTED);
         bar.setVisibility(android.view.View.VISIBLE);
+        doneButton.setVisibility(android.view.View.INVISIBLE);
         bar.setProgress(Math.max(0, Math.min(100, percent)));
     }
 
@@ -111,7 +114,7 @@ public final class InstallDialog {
         bar.setProgress(100);
         stageView.setText("✓  " + text);
         stageView.setTextColor(UiKit.INK);
-        bar.setVisibility(android.view.View.GONE);
+        bar.setVisibility(android.view.View.INVISIBLE);
         doneButton.setVisibility(android.view.View.VISIBLE);
         handler.postDelayed(autoClose, AUTO_CLOSE_MS);
     }
@@ -120,7 +123,7 @@ public final class InstallDialog {
         handler.removeCallbacks(autoClose);
         stageView.setText(text);
         stageView.setTextColor(UiKit.DANGER);
-        bar.setVisibility(android.view.View.GONE);
+        bar.setVisibility(android.view.View.INVISIBLE);
         doneButton.setVisibility(android.view.View.VISIBLE);
     }
 

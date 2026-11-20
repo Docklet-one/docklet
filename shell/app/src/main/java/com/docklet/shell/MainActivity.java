@@ -2913,10 +2913,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             stopActiveModule(() -> performUninstall(module, deleteData, after));
             return;
         }
-        Dialog progress = showProgress(
-                "正在卸载",
-                deleteData ? "删除模块代码与数据" : "删除模块代码，保留数据"
+        InstallDialog dialog = InstallDialog.show(
+                this,
+                "卸载 " + module.name(),
+                "v" + module.version() + (deleteData ? " · 同时删除数据" : " · 保留数据")
         );
+        dialog.stage("正在移除…", 30);
         // The module is leaving: drop its background subscription so the
         // service stops polling an endpoint that no longer has an owner.
         DockletMessageService.unsubscribe(this, module.id());
@@ -2931,19 +2933,23 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 if (crashGuard != null) crashGuard.clear(module.id());
                 List<InstalledModule> remaining = manager.listInstalled();
                 main.post(() -> {
-                    dismissQuietly(progress);
+                    dialog.stage("正在移除…", 100);
+                    dialog.success("已卸载 " + module.name());
                     if (after != null) {
                         after.accept(remaining);
                     } else {
                         refreshAfterUninstall(remaining);
                     }
-                    showSnack(deleteData ? "模块与数据已删除" : "模块已卸载，数据保留");
                 });
             } catch (ModuleException error) {
                 main.post(() -> {
-                    dismissQuietly(progress);
                     uninstallFromAdd = false;
-                    showErrorSheet("卸载失败", error.getCode(), friendly(error.getCode(), error.getMessage()));
+                    dialog.failure(friendly(error.getCode(), error.getMessage()));
+                });
+            } catch (Exception error) {
+                main.post(() -> {
+                    uninstallFromAdd = false;
+                    dialog.failure("卸载没有完成，请稍后再试");
                 });
             }
         });
