@@ -57,6 +57,9 @@ public final class HomeScreen extends LinearLayout {
 
         void onBrowseDemos();
 
+        /** 打开「在线模块」页（空状态里的「从在线模块添加」）。 */
+        void onBrowseOnline();
+
         void onInstallFromFile();
 
         void onShowModuleDetails(InstalledModule module);
@@ -353,19 +356,27 @@ public final class HomeScreen extends LinearLayout {
         favoriteHost.setOrientation(VERTICAL);
         content.addView(favoriteHost);
 
-        TextView empty = UiKit.text(
-                activity,
-                "还没有模块。点底部「模块」添加。",
-                11.5f,
-                UiKit.MUTED,
-                false
+        TextView browse = UiKit.secondaryButton(activity, "从在线模块添加");
+        browse.setOnClickListener(view -> listener.onBrowseOnline());
+        LinearLayout.LayoutParams browseParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
         );
-        empty.setGravity(Gravity.CENTER);
-        empty.setPadding(dp(2), dp(40), dp(2), dp(10));
-        emptyState = empty;
+        browseParams.topMargin = dp(6);
+        browseParams.leftMargin = dp(2);
+        browseParams.rightMargin = dp(2);
+        browse.setLayoutParams(browseParams);
+        emptyState = browse;
         content.addView(emptyState);
         rebuildList();
         return scroll;
+    }
+
+    /** 最近区块为空时的一行提示。 */
+    private View emptyLine(String text) {
+        TextView copy = UiKit.text(activity, text, 11f, UiKit.FAINT, false);
+        copy.setGravity(Gravity.CENTER);
+        copy.setPadding(dp(2), dp(26), dp(2), dp(18));
+        return copy;
     }
 
     private View buildSpotlight(InstalledModule module, boolean running) {
@@ -446,7 +457,8 @@ public final class HomeScreen extends LinearLayout {
         List<InstalledModule> recent = recentModules();
         if (recent.isEmpty()) {
             recentSection.setVisibility(View.GONE);
-            recentHost.setVisibility(View.GONE);
+            recentHost.setVisibility(View.VISIBLE);
+            recentHost.addView(emptyLine("未有模块"));
         } else {
             recentSection.setVisibility(View.VISIBLE);
             recentHost.setVisibility(View.VISIBLE);

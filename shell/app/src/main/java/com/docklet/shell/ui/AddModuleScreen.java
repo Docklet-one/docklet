@@ -1083,6 +1083,26 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     }
 
     /** Divider between the recent grid and the favourites grid. */
+    /** 区块为空时的一行提示，高度和网格留白接近。 */
+    private View sectionEmpty(String text) {
+        TextView copy = UiKit.text(activity, text, 11f, UiKit.FAINT, false);
+        copy.setGravity(Gravity.CENTER);
+        copy.setPadding(dp(2), dp(26), dp(2), dp(18));
+        return copy;
+    }
+
+    /** 「从在线模块添加」：和自定义分类空状态里的按钮同一套样式。 */
+    private View onlineAddButton() {
+        TextView add = UiKit.secondaryButton(activity, "从在线模块添加");
+        add.setOnClickListener(view -> listener.onOpenOnline());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+        );
+        params.topMargin = dp(6);
+        add.setLayoutParams(params);
+        return add;
+    }
+
     private View sectionDivider() {
         LinearLayout row = new LinearLayout(activity);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1192,17 +1212,20 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
             List<InstalledModule> recent = recentModules();
             List<InstalledModule> favorites = favoriteModules();
             ModuleCategories.sort(activity, favorites, FAVORITES_SCOPE);
-            if (!recent.isEmpty()) {
+            // 固定结构：最近区块 → 分割线 → 收藏区块。
+            if (recent.isEmpty()) {
+                list.addView(sectionEmpty("未有模块"));
+            } else {
                 list.addView(buildRecentGrid(recent, null, "最近"));
             }
-            if (!favorites.isEmpty()) {
-                if (!recent.isEmpty()) {
-                    list.addView(sectionDivider());
+            list.addView(sectionDivider());
+            if (favorites.isEmpty()) {
+                list.addView(sectionEmpty("暂无收藏"));
+                if (recent.isEmpty()) {
+                    list.addView(onlineAddButton());
                 }
+            } else {
                 list.addView(buildRecentGrid(favorites, FAVORITES_SCOPE, "收藏"));
-            }
-            if (recent.isEmpty() && favorites.isEmpty()) {
-                list.addView(emptyResult("还没有模块。点底部「模块」添加。"));
             }
             return;
         }

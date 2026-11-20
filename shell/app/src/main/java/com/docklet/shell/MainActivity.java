@@ -625,6 +625,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         showAddScreen();
     }
 
+    @Override
+    public void onBrowseOnline() {
+        showAddScreen();
+        main.post(this::openOnlinePage);
+    }
+
     private void stopActiveModule(Runnable action) {
         if (!moduleAwaitingResult || activeModuleId == null) {
             action.run();
