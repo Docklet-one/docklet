@@ -128,9 +128,9 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         back.setContentDescription("返回");
         IconView icon = new IconView(activity).type(IconView.Type.BACK);
         icon.setColor(UiKit.ACCENT_DEEP);
-        back.addView(icon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        back.addView(icon, new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER));
         back.setOnClickListener(view -> listener.onClose());
-        header.addView(back, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        header.addView(back, new LinearLayout.LayoutParams(dp(38), dp(38)));
 
         TextView title = UiKit.text(activity, "模块详情", 17f, UiKit.INK, true);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
@@ -193,6 +193,13 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
                 ));
             }
         }
+
+        LinearLayout stats = new LinearLayout(activity);
+        stats.setOrientation(HORIZONTAL);
+        stats.setPadding(0, dp(2), 0, dp(20));
+        content.addView(stats);
+        addStat(stats, "文件大小", app.size() > 0 ? UiKit.formatBytes(app.size()) : "—");
+        addStat(stats, "更新时间", app.updatedAt().isEmpty() ? "—" : app.updatedAt());
 
         String intro = app.description().isEmpty() ? app.tagline() : app.description();
         if (!intro.isEmpty()) {
