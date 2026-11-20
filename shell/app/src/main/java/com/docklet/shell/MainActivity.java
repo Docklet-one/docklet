@@ -2637,10 +2637,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                         if (onSuccess != null) {
                             onSuccess.accept(module);
                         } else {
-                            if (localInstallOpen) {
-                                localInstallOpen = false;
-                                closeOverlay();
-                            }
                             if (inventory != null) {
                                 inventory.refresh(true, modules -> refreshScreens(modules));
                             }
@@ -2758,10 +2754,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                             module.name(),
                             "✓ 已安装 " + module.name() + " · v" + module.version()
                     );
-                    if (localInstallOpen) {
-                        localInstallOpen = false;
-                        closeOverlay();
-                    }
                     if (inventory != null) {
                         inventory.refresh(true, modules -> refreshScreens(modules));
                     }
