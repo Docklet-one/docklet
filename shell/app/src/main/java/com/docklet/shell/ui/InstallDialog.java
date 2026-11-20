@@ -19,7 +19,12 @@ import android.widget.TextView;
  */
 public final class InstallDialog {
 
-    private static final long AUTO_CLOSE_MS = 1000L;
+    /** 成功后停留多久再自动关闭。 */
+    private static final long AUTO_CLOSE_MS = 1600L;
+    /** 前这段时间只显示“获取中…”，不显示百分比，避免一闪而过。 */
+    private static final long PROGRESS_AFTER_MS = 700L;
+    /** 整个弹窗至少显示这么久，避免 0.2 秒装完什么都看不见。 */
+    private static final long MIN_TOTAL_MS = 1300L;
     private static final float DIALOG_WIDTH_DP = 320f;
 
     private final Dialog dialog;
@@ -28,6 +33,7 @@ public final class InstallDialog {
     private final TextView doneButton;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable autoClose;
+    private final long startedAt = android.os.SystemClock.elapsedRealtime();
 
     private InstallDialog(Activity activity, String title, String subtitle) {
         dialog = new Dialog(activity);
@@ -102,21 +108,38 @@ public final class InstallDialog {
     }
 
     public void stage(String text, int percent) {
-        stageView.setText(text);
+        long elapsed = android.os.SystemClock.elapsedRealtime() - startedAt;
         stageView.setTextColor(UiKit.MUTED);
         bar.setVisibility(android.view.View.VISIBLE);
         doneButton.setVisibility(android.view.View.INVISIBLE);
+        if (elapsed < PROGRESS_AFTER_MS) {
+            // 刚开始只给阶段文案，百分比晚一点出现，读起来更像“在做事”。
+            stageView.setText(withoutPercent(text));
+            bar.setProgress(0);
+            return;
+        }
+        stageView.setText(text);
         bar.setProgress(Math.max(0, Math.min(100, percent)));
     }
 
+    private static String withoutPercent(String text) {
+        if (text == null) return "";
+        int cut = text.lastIndexOf(' ');
+        if (cut > 0 && text.endsWith("%")) return text.substring(0, cut);
+        return text;
+    }
+
     public void success(String text) {
-        handler.removeCallbacks(autoClose);
-        bar.setProgress(100);
-        stageView.setText("✓  " + text);
-        stageView.setTextColor(UiKit.INK);
-        bar.setVisibility(android.view.View.INVISIBLE);
-        doneButton.setVisibility(android.view.View.VISIBLE);
-        handler.postDelayed(autoClose, AUTO_CLOSE_MS);
+        long elapsed = android.os.SystemClock.elapsedRealtime() - startedAt;
+        long wait = Math.max(0L, MIN_TOTAL_MS - elapsed);
+        handler.postDelayed(() -> {
+            bar.setProgress(100);
+            stageView.setText("✓  " + text);
+            stageView.setTextColor(UiKit.INK);
+            bar.setVisibility(android.view.View.INVISIBLE);
+            doneButton.setVisibility(android.view.View.VISIBLE);
+            handler.postDelayed(autoClose, AUTO_CLOSE_MS);
+        }, wait);
     }
 
     public void failure(String text) {
