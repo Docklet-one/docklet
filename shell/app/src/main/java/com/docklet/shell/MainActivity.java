@@ -117,6 +117,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private HomeScreen home;
     private AddModuleScreen addScreen;
     private AddModuleScreen onlineScreen;
+    /** 本地安装页当前是否作为覆盖层打开。 */
+    private boolean localInstallOpen;
     private AddModuleScreen.Listener appListener;
     private AddModuleScreen pendingDemoAdd;
     /** The page that opened the detail, so install/uninstall refresh the right one. */
@@ -728,7 +730,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
                     @Override
                     public void onUrl(String url, String sha256) {
-                        leaveApp();
                         installFromUrl(url, sha256, "模块包", null);
                     }
 
@@ -856,7 +857,10 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         if (addScreen == null) showAddScreen();
         if (addScreen == null) return;
         View page = addScreen.buildLocalInstallPage(this::closeOverlay);
-        if (page != null) pushOverlay(page);
+        if (page != null) {
+            pushOverlay(page);
+            localInstallOpen = true;
+        }
     }
 
     /** The standalone 在线应用 page: its own screen instance on the overlay layer. */
@@ -2639,8 +2643,18 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             String label,
             java.util.function.Consumer<InstalledModule> onSuccess
     ) {
+        installFromUrl(url, sha256, label, onSuccess, false);
+    }
+
+    private void installFromUrl(
+            String url,
+            String sha256,
+            String label,
+            java.util.function.Consumer<InstalledModule> onSuccess,
+            boolean allowDowngrade
+    ) {
         if (moduleAwaitingResult) {
-            stopActiveModule(() -> installFromUrl(url, sha256, label, onSuccess));
+            stopActiveModule(() -> installFromUrl(url, sha256, label, onSuccess, allowDowngrade));
             return;
         }
         String name = label == null || label.isEmpty() ? "模块" : label;
@@ -2683,7 +2697,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     final File ready = temp;
                     temp = null;
                     main.post(() -> dialog.stage("校验并安装…", 100));
-                    InstalledModule module = manager.install(ready);
+                    InstalledModule module = manager.install(ready, null, null, allowDowngrade);
                     //noinspection ResultOfMethodCallIgnored
                     ready.delete();
                     main.post(() -> {
@@ -2695,8 +2709,14 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                         );
                         if (onSuccess != null) {
                             onSuccess.accept(module);
-                        } else if (inventory != null) {
-                            inventory.refresh(true, modules -> refreshScreens(modules));
+                        } else {
+                            if (localInstallOpen) {
+                                localInstallOpen = false;
+                                closeOverlay();
+                            }
+                            if (inventory != null) {
+                                inventory.refresh(true, modules -> refreshScreens(modules));
+                            }
                         }
                     });
                     return;
@@ -2721,7 +2741,10 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 if (ModuleException.VERSION_CONFLICT.equals(error.getCode())) {
                     dialog.failure(IconView.Type.INFO, "无需安装", name, "已经是最新版本了");
                 } else if (ModuleException.VERSION_DOWNGRADE.equals(error.getCode())) {
-                    dialog.failure(IconView.Type.INFO, "无需安装", name, "本地版本比目录里更新");
+                    dialog.dismiss();
+                    confirmDowngrade(name, () ->
+                            installFromUrl(url, sha256, label, onSuccess, true));
+                    return;
                 } else {
                     dialog.failure(
                             IconView.Type.INFO,
@@ -2743,9 +2766,13 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     }
 
     private void installFromUri(Uri uri, String expectedSha256) {
+        installFromUri(uri, expectedSha256, false);
+    }
+
+    private void installFromUri(Uri uri, String expectedSha256, boolean allowDowngrade) {
         if (uri == null) return;
         if (moduleAwaitingResult) {
-            stopActiveModule(() -> installFromUri(uri, expectedSha256));
+            stopActiveModule(() -> installFromUri(uri, expectedSha256, allowDowngrade));
             return;
         }
         InstallDialog dialog = InstallDialog.show(
@@ -2773,7 +2800,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                         );
                     }
                 }
-                InstalledModule module = manager.install(temp);
+                InstalledModule module = manager.install(temp, null, null, allowDowngrade);
                 main.post(() -> {
                     dialog.success(
                             IconView.Type.CHECK,
@@ -2781,17 +2808,29 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                             module.name(),
                             "✓ 已安装 " + module.name() + " · v" + module.version()
                     );
+                    if (localInstallOpen) {
+                        localInstallOpen = false;
+                        closeOverlay();
+                    }
                     if (inventory != null) {
                         inventory.refresh(true, modules -> refreshScreens(modules));
                     }
                 });
             } catch (ModuleException error) {
-                main.post(() -> dialog.failure(
-                        IconView.Type.INFO,
-                        "安装失败",
-                        "本地模块包",
-                        friendly(error.getCode(), error.getMessage())
-                ));
+                main.post(() -> {
+                    if (ModuleException.VERSION_DOWNGRADE.equals(error.getCode())) {
+                        dialog.dismiss();
+                        confirmDowngrade("本地模块包", () ->
+                                installFromUri(uri, expectedSha256, true));
+                        return;
+                    }
+                    dialog.failure(
+                            IconView.Type.INFO,
+                            "安装失败",
+                            "本地模块包",
+                            friendly(error.getCode(), error.getMessage())
+                    );
+                });
             } catch (Exception error) {
                 main.post(() -> dialog.failure(
                         IconView.Type.INFO,
@@ -2804,6 +2843,69 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 temp.delete();
             }
         });
+    }
+
+    /** 装旧版本前的确认：讲清风险，默认取消。 */
+    private void confirmDowngrade(String name, Runnable onContinue) {
+        SheetDialog sheet = new SheetDialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout tile = new FrameLayout(this);
+        tile.setBackground(UiKit.rounded(this, UiKit.DANGER_SOFT, 13f));
+        IconView icon = new IconView(this).type(IconView.Type.INFO);
+        icon.setColor(UiKit.DANGER);
+        tile.addView(icon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        head.addView(tile, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        LinearLayout titles = new LinearLayout(this);
+        titles.setOrientation(LinearLayout.VERTICAL);
+        titles.addView(UiKit.text(this, "已安装有新版本", 17f, UiKit.INK, true));
+        titles.addView(UiKit.text(this, name, 12f, UiKit.MUTED, false));
+        LinearLayout.LayoutParams titlesParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        titlesParams.leftMargin = dp(12);
+        head.addView(titles, titlesParams);
+        content.addView(head);
+
+        TextView warning = UiKit.text(
+                this,
+                "安装旧版本可能导致模块异常、数据丢失。",
+                12.5f,
+                UiKit.DANGER,
+                false
+        );
+        warning.setLineSpacing(dp(2), 1.35f);
+        LinearLayout.LayoutParams warningParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        warningParams.topMargin = dp(16);
+        content.addView(warning, warningParams);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        TextView cancel = UiKit.secondaryButton(this, "取消");
+        cancel.setOnClickListener(view -> sheet.dismiss());
+        actions.addView(cancel, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        TextView go = UiKit.primaryButton(this, "继续");
+        go.setOnClickListener(view -> {
+            sheet.dismiss();
+            onContinue.run();
+        });
+        LinearLayout.LayoutParams goParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        goParams.leftMargin = dp(10);
+        actions.addView(go, goParams);
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        actionsParams.topMargin = dp(20);
+        content.addView(actions, actionsParams);
+
+        sheet.setBody(content);
+        sheet.show();
     }
 
     private String sha256(File file) throws Exception {

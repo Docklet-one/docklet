@@ -114,6 +114,18 @@ public final class ModuleManager {
             String expectedId,
             String expectedVersion
     ) throws ModuleException {
+        return install(packageFile, expectedId, expectedVersion, false);
+    }
+
+    /**
+     * @param allowDowngrade 用户明确确认“装旧版本”时传 true；默认拒绝降级。
+     */
+    public synchronized InstalledModule install(
+            File packageFile,
+            String expectedId,
+            String expectedVersion,
+            boolean allowDowngrade
+    ) throws ModuleException {
         if (packageFile == null || !packageFile.isFile()) {
             throw new ModuleException(ModuleException.PACKAGE_MISSING, "安装包不存在");
         }
@@ -183,7 +195,7 @@ public final class ModuleManager {
             }
             if (baseline != null) {
                 int comparison = SemVer.compare(manifest.version(), baseline);
-                if (comparison < 0) {
+                if (comparison < 0 && !allowDowngrade) {
                     throw new ModuleException(
                             ModuleException.VERSION_DOWNGRADE,
                             "不允许降级：当前 " + baseline + "，包内 " + manifest.version()

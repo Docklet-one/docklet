@@ -2300,7 +2300,6 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                 return;
             }
             hideKeyboard(url);
-            onBack.run();
             listener.onUrl(link, shaValue);
         });
         LinearLayout.LayoutParams installParams = new LinearLayout.LayoutParams(
@@ -2356,7 +2355,6 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                 return;
             }
             hideKeyboard(url);
-            onBack.run();
             listener.onPickFile(shaValue);
         });
 
