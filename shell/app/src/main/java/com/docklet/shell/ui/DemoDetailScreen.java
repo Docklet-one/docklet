@@ -25,12 +25,16 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         void onOpen();
 
         void onUninstall();
+
+        /** 回滚到上一版，仅在 previousVersion 存在时触发。 */
+        void onRollback();
     }
 
     private final Activity activity;
     private final DemoApp app;
     private String state;
     private String installedVersion;
+    private final String previousVersion;
     private final Listener listener;
     private LinearLayout contentHost;
     private View actionBar;
@@ -40,6 +44,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
             DemoApp app,
             String state,
             String installedVersion,
+            String previousVersion,
             Listener listener
     ) {
         super(activity);
@@ -47,6 +52,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         this.app = app;
         this.state = state == null ? "" : state;
         this.installedVersion = installedVersion;
+        this.previousVersion = previousVersion;
         this.listener = listener;
         setOrientation(VERTICAL);
         setBackgroundColor(UiKit.BG);
@@ -172,6 +178,33 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         addStat(stats, "当前版本", "v" + app.version());
         addStat(stats, "文件大小", app.size() > 0 ? UiKit.formatBytes(app.size()) : "—");
         addStat(stats, "更新时间", app.updatedAt().isEmpty() ? "—" : app.updatedAt());
+
+        if (installedVersion != null && !installedVersion.isEmpty()) {
+            content.addView(section("版本", "VERSION"));
+            content.addView(detailLine("当前", "v" + installedVersion));
+            if (previousVersion != null && !previousVersion.isEmpty()) {
+                LinearLayout row = new LinearLayout(activity);
+                row.setOrientation(HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(0, dp(10), 0, dp(10));
+                TextView label = UiKit.text(activity, "上一版", 12.5f, UiKit.MUTED, false);
+                row.addView(label, new LinearLayout.LayoutParams(
+                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                ));
+                TextView value = UiKit.text(activity, "v" + previousVersion, 12.5f, UiKit.MUTED, false);
+                LinearLayout.LayoutParams valueParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+                valueParams.rightMargin = dp(12);
+                row.addView(value, valueParams);
+                TextView rollback = UiKit.text(activity, "回滚", 12.5f, UiKit.ACCENT_DEEP, true);
+                rollback.setPadding(dp(6), dp(2), dp(6), dp(2));
+                rollback.setBackground(UiKit.ripple(activity, UiKit.ACCENT_SOFT, 9f));
+                rollback.setOnClickListener(view -> listener.onRollback());
+                row.addView(rollback);
+                content.addView(row);
+            }
+        }
 
         String intro = app.description().isEmpty() ? app.tagline() : app.description();
         if (!intro.isEmpty()) {

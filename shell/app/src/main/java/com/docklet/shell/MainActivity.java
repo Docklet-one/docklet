@@ -984,6 +984,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 app,
                 state,
                 installed == null ? null : installed.version(),
+                installed == null ? null : installed.previousVersion(),
                 new DemoDetailScreen.Listener() {
                     @Override
                     public void onClose() {
@@ -1012,6 +1013,16 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                         prepareDemoDetailReturn(screenRef[0], demoDetailOrigin);
                         closeOverlay();
                         onOpenModule(module);
+                    }
+
+                    @Override
+                    public void onRollback() {
+                        InstalledModule module = installedModule(app.id());
+                        if (module == null || !module.canRollback()) {
+                            showSnack("没有可回滚的版本");
+                            return;
+                        }
+                        confirmRollback(module);
                     }
 
                     @Override

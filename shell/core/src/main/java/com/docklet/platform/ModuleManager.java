@@ -506,6 +506,19 @@ public final class ModuleManager {
         }
     }
 
+    /** 只保留最新的两个版本（当前 + 上一版），更早的目录直接删掉。 */
+    private void pruneVersions(String id) {
+        try {
+            List<String> versions = installedVersions(id);
+            if (versions.size() <= 2) return;
+            for (int i = 0; i < versions.size() - 2; i += 1) {
+                FileOps.deleteRecursively(new File(moduleDir(id), versions.get(i)));
+            }
+        } catch (Exception ignored) {
+            // 清理失败不影响模块本身可用。
+        }
+    }
+
     public synchronized List<String> installedVersions(String id) throws ModuleException {
         validateId(id);
         List<String> versions = new ArrayList<>();
