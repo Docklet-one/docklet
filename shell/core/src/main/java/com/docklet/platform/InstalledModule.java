@@ -13,7 +13,6 @@ public final class InstalledModule {
     private final String id;
     private final String name;
     private final String version;
-    private final String previousVersion;
     private final String description;
     private final String tagline;
     private final String author;
@@ -37,7 +36,6 @@ public final class InstalledModule {
             String id,
             String name,
             String version,
-            String previousVersion,
             String description,
             String tagline,
             String author,
@@ -60,7 +58,6 @@ public final class InstalledModule {
         this.id = id;
         this.name = name;
         this.version = version;
-        this.previousVersion = previousVersion;
         this.description = description;
         this.tagline = tagline == null ? "" : tagline;
         this.author = author == null ? "" : author;
@@ -93,10 +90,6 @@ public final class InstalledModule {
 
     public String version() {
         return version;
-    }
-
-    public String previousVersion() {
-        return previousVersion;
     }
 
     public String description() {
@@ -171,16 +164,11 @@ public final class InstalledModule {
         return directory;
     }
 
-    public boolean canRollback() {
-        return previousVersion != null && !previousVersion.isEmpty();
-    }
-
     public Map<String, Object> toMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", id);
         map.put("name", name);
         map.put("version", version);
-        if (previousVersion != null) map.put("previousVersion", previousVersion);
         if (description != null) map.put("description", description);
         if (!tagline.isEmpty()) map.put("tagline", tagline);
         if (!author.isEmpty()) map.put("author", author);

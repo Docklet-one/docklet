@@ -991,7 +991,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 app,
                 state,
                 installed == null ? null : installed.version(),
-                installed == null ? null : installed.previousVersion(),
                 new DemoDetailScreen.Listener() {
                     @Override
                     public void onClose() {
@@ -1002,11 +1001,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     public void onInstall() {
                         installDemoApp(app, module -> {
                             if (screenRef[0] != null) {
-                                screenRef[0].setState(
-                                        "已安装",
-                                        module.version(),
-                                        module.previousVersion()
-                                );
+                                screenRef[0].setState("已安装", module.version());
                             }
                             if (inventory != null) {
                                 inventory.refresh(true, modules -> refreshScreens(modules));
@@ -1024,16 +1019,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                         prepareDemoDetailReturn(screenRef[0], demoDetailOrigin);
                         closeOverlay();
                         onOpenModule(module);
-                    }
-
-                    @Override
-                    public void onRollback() {
-                        InstalledModule module = installedModule(app.id());
-                        if (module == null || !module.canRollback()) {
-                            showSnack("没有可回滚的版本");
-                            return;
-                        }
-                        confirmRollback(module);
                     }
 
                     @Override
@@ -2040,9 +2025,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         addInfoRow(panel, "能力", module.capabilities().isEmpty()
                 ? "无"
                 : TextUtils.join(" · ", module.capabilities()), false);
-        addInfoRow(panel, "已安装版本", TextUtils.join(", ", module.versions()), false);
-        addInfoRow(panel, "上一版本",
-                module.canRollback() ? module.previousVersion() : "无", false);
+        addInfoRow(panel, "已安装版本", String.join(", ", module.versions()), false);
         if (crash.failed()) {
             addInfoRow(panel, "启动状态",
                     crash.blocked()
@@ -2087,21 +2070,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         openParams.topMargin = dp(18);
         content.addView(open, openParams);
 
-        if (module.canRollback()) {
-            TextView rollback = UiKit.secondaryButton(
-                    this,
-                    "回滚到 v" + module.previousVersion()
-            );
-            rollback.setOnClickListener(view -> {
-                sheet.dismiss();
-                confirmRollback(module);
-            });
-            LinearLayout.LayoutParams rollbackParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            rollbackParams.topMargin = dp(8);
-            content.addView(rollback, rollbackParams);
-        }
 
         TextView uninstall = UiKit.textButton(this, "卸载模块", UiKit.DANGER);
         uninstall.setOnClickListener(view -> {
@@ -2332,63 +2300,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             dividerParams.rightMargin = dp(14);
             panel.addView(divider, dividerParams);
         }
-    }
-
-    private void confirmRollback(InstalledModule module) {
-        SheetDialog sheet = new SheetDialog(this);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-
-        TextView title = UiKit.text(
-                this,
-                "回滚到 v" + module.previousVersion() + "？",
-                20f,
-                UiKit.INK,
-                true
-        );
-        content.addView(title);
-
-        TextView detail = UiKit.text(
-                this,
-                "current 指针会回到上一版。当前版本目录会保留，模块数据不会改动。",
-                12f,
-                UiKit.MUTED,
-                false
-        );
-        detail.setLineSpacing(dp(2), 1.2f);
-        LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        detailParams.topMargin = dp(8);
-        content.addView(detail, detailParams);
-
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        actionsParams.topMargin = dp(20);
-        content.addView(actions, actionsParams);
-
-        TextView cancel = UiKit.secondaryButton(this, "取消");
-        cancel.setOnClickListener(view -> sheet.dismiss());
-        actions.addView(cancel, new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        ));
-
-        TextView confirm = UiKit.primaryButton(this, "回滚");
-        confirm.setOnClickListener(view -> {
-            sheet.dismiss();
-            performRollback(module);
-        });
-        LinearLayout.LayoutParams confirmParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        confirmParams.leftMargin = dp(10);
-        actions.addView(confirm, confirmParams);
-
-        sheet.setBody(content);
-        sheet.show();
     }
 
     private void confirmUninstall(InstalledModule module) {
@@ -2922,47 +2833,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             out.append(String.format(Locale.ROOT, "%02x", value & 0xff));
         }
         return out.toString();
-    }
-
-    private void performRollback(InstalledModule module) {
-        InstallDialog dialog = InstallDialog.show(
-                this,
-                IconView.Type.REFRESH,
-                "正在回滚",
-                module.name()
-        );
-        io.execute(() -> {
-            try {
-                main.post(() -> dialog.stage("切换版本…", 40));
-                InstalledModule rolled = manager.rollback(module.id());
-                main.post(() -> {
-                    dialog.stage("切换版本…", 100);
-                    dialog.success(
-                            IconView.Type.CHECK,
-                            "回滚完成",
-                            module.name(),
-                            "✓ 当前版本 v" + rolled.version()
-                    );
-                    if (demoDetailScreen != null) {
-                        demoDetailScreen.setState(
-                                "已安装",
-                                rolled.version(),
-                                rolled.previousVersion()
-                        );
-                    }
-                    if (inventory != null) {
-                        inventory.refresh(true, modules -> refreshScreens(modules));
-                    }
-                });
-            } catch (ModuleException error) {
-                main.post(() -> dialog.failure(
-                        IconView.Type.INFO,
-                        "回滚失败",
-                        module.name(),
-                        "请稍后再试"
-                ));
-            }
-        });
     }
 
     private void performUninstall(InstalledModule module, boolean deleteData) {

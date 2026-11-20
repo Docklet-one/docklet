@@ -50,7 +50,6 @@ public class ModuleManagerTest {
 
         assertEquals("demo", module.id());
         assertEquals("1.0.0", module.version());
-        assertNull(module.previousVersion());
         assertEquals("https://demo.module.local", module.origin());
         assertEquals(1, manager.listInstalled().size());
         assertTrue(new File(modules, "demo/1.0.0/index.html").isFile());
@@ -78,7 +77,7 @@ public class ModuleManagerTest {
     }
 
     @Test
-    public void updateKeepsPreviousAndRollbackMovesCurrent() throws Exception {
+    public void updateKeepsOnlyTheCurrentVersion() throws Exception {
         manager.install(packageWith("demo", "1.0.0", "index.html", "index.html", "v1"));
         writeData("demo", "app.db", "keep-me");
 
@@ -86,16 +85,9 @@ public class ModuleManagerTest {
                 packageWith("demo", "1.1.0", "index.html", "index.html", "v2")
         );
         assertEquals("1.1.0", updated.version());
-        assertEquals("1.0.0", updated.previousVersion());
-        assertEquals(2, updated.versions().size());
-        assertTrue(updated.canRollback());
-        assertEquals("keep-me", readData("demo", "app.db"));
-
-        InstalledModule rolled = manager.rollback("demo");
-        assertEquals("1.0.0", rolled.version());
-        assertNull(rolled.previousVersion());
-        assertFalse(rolled.canRollback());
-        assertEquals(2, manager.installedVersions("demo").size());
+        assertEquals(1, updated.versions().size());
+        assertEquals(1, manager.installedVersions("demo").size());
+        assertEquals("1.1.0", manager.installedVersions("demo").get(0));
         assertEquals("keep-me", readData("demo", "app.db"));
     }
 

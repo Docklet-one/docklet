@@ -239,7 +239,10 @@ public final class ModuleManager {
             if (result == null) {
                 throw new ModuleException(ModuleException.INSTALL_FAILED, "安装后无法读取模块信息");
             }
-            return result;
+            // 安装已经生效：只保留当前版本，其它版本目录全部清掉。
+            pruneVersions(manifest.id());
+            InstalledModule pruned = findInstalled(manifest.id());
+            return pruned == null ? result : pruned;
         } catch (ModuleException error) {
             throw error;
         } catch (IOException error) {
@@ -370,13 +373,11 @@ public final class ModuleManager {
         File manifestFile = new File(versionDir, ModuleManifest.FILE_NAME);
         ModuleManifest manifest = ModuleManifest.read(manifestFile);
         List<String> versions = installedVersions(id);
-        String previous = previousVersion(versions, current);
         File data = new File(dataRoot, id);
         return new InstalledModule(
                 manifest.id(),
                 manifest.name(),
                 current,
-                previous,
                 manifest.description(),
                 manifest.tagline(),
                 manifest.author(),
@@ -428,33 +429,6 @@ public final class ModuleManager {
         return repaired;
     }
 
-    public synchronized InstalledModule rollback(String id) throws ModuleException {
-        validateId(id);
-        String current = currentVersion(id);
-        if (current == null) {
-            throw new ModuleException(ModuleException.NOT_INSTALLED, "模块未安装: " + id);
-        }
-        List<String> versions = installedVersions(id);
-        String previous = previousVersion(versions, current);
-        if (previous == null) {
-            throw new ModuleException(ModuleException.NO_PREVIOUS_VERSION, "没有可回滚的上一版");
-        }
-        try {
-            writeCurrent(id, previous);
-        } catch (IOException error) {
-            throw new ModuleException(ModuleException.INSTALL_FAILED, "回滚写入 current 失败", error);
-        }
-        InstalledModule module = findInstalled(id);
-        if (module == null) {
-            throw new ModuleException(ModuleException.INSTALL_FAILED, "回滚后无法读取模块");
-        }
-        return module;
-    }
-
-    /**
-     * @return true when a module or its data was removed. If deleteData is false,
-     *         data remains for a later reinstall.
-     */
     public synchronized boolean uninstall(String id, boolean deleteData) throws ModuleException {
         validateId(id);
         File moduleDir = new File(modulesRoot, id);
@@ -518,13 +492,14 @@ public final class ModuleManager {
         }
     }
 
-    /** 只保留最新的两个版本（当前 + 上一版），更早的目录直接删掉。 */
+    /** 只保留当前版本：安装成功后其它版本目录全部删掉。 */
     private void pruneVersions(String id) {
         try {
-            List<String> versions = installedVersions(id);
-            if (versions.size() <= 2) return;
-            for (int i = 0; i < versions.size() - 2; i += 1) {
-                FileOps.deleteRecursively(new File(moduleDir(id), versions.get(i)));
+            String current = currentVersion(id);
+            if (current == null) return;
+            for (String version : installedVersions(id)) {
+                if (version.equals(current)) continue;
+                FileOps.deleteRecursively(new File(moduleDir(id), version));
             }
         } catch (Exception ignored) {
             // 清理失败不影响模块本身可用。
@@ -543,14 +518,6 @@ public final class ModuleManager {
         }
         versions.sort((left, right) -> SemVer.compare(left, right));
         return versions;
-    }
-
-    private String previousVersion(List<String> ascending, String current) {
-        for (int i = ascending.size() - 1; i >= 0; i -= 1) {
-            String candidate = ascending.get(i);
-            if (SemVer.compare(candidate, current) < 0) return candidate;
-        }
-        return null;
     }
 
     private void validateId(String id) throws ModuleException {

@@ -25,16 +25,12 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         void onOpen();
 
         void onUninstall();
-
-        /** 回滚到上一版，仅在 previousVersion 存在时触发。 */
-        void onRollback();
     }
 
     private final Activity activity;
     private final DemoApp app;
     private String state;
     private String installedVersion;
-    private String previousVersion;
     private final Listener listener;
     private LinearLayout contentHost;
     private View actionBar;
@@ -44,7 +40,6 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
             DemoApp app,
             String state,
             String installedVersion,
-            String previousVersion,
             Listener listener
     ) {
         super(activity);
@@ -52,7 +47,6 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         this.app = app;
         this.state = state == null ? "" : state;
         this.installedVersion = installedVersion;
-        this.previousVersion = previousVersion;
         this.listener = listener;
         setOrientation(VERTICAL);
         setBackgroundColor(UiKit.BG);
@@ -82,15 +76,10 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         ));
     }
 
+    /** 安装/更新之后同步版本信息。 */
     public void setState(String state, String installedVersion) {
-        setState(state, installedVersion, previousVersion);
-    }
-
-    /** 安装/更新/回滚之后同步版本信息，包括“上一版”这一行。 */
-    public void setState(String state, String installedVersion, String previousVersion) {
         this.state = state == null ? "" : state;
         this.installedVersion = installedVersion;
-        this.previousVersion = previousVersion;
         if (contentHost != null) {
             contentHost.removeAllViews();
             buildContent(contentHost);
@@ -185,14 +174,6 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         if (installedVersion != null && !installedVersion.isEmpty()) {
             content.addView(section("版本", "VERSION"));
             content.addView(detailLine("当前", "v" + installedVersion));
-            if (previousVersion != null && !previousVersion.isEmpty()) {
-                content.addView(versionActionRow(
-                        "上一版",
-                        "v" + previousVersion,
-                        "回滚",
-                        () -> listener.onRollback()
-                ));
-            }
             if (com.docklet.platform.SemVer.compare(installedVersion, app.version()) < 0) {
                 content.addView(versionActionRow(
                         "发现更新",
