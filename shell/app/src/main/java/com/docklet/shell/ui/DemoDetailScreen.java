@@ -120,16 +120,17 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(20), dp(10), dp(20), dp(8));
 
+        // 与在线模块等页面相同的返回块：暖色底 + 箭头。
         FrameLayout back = new FrameLayout(activity);
-        back.setBackground(UiKit.ripple(activity, UiKit.SURFACE, 19f));
+        back.setBackground(UiKit.ripple(activity, UiKit.ACCENT_SOFT, 13f));
         back.setClickable(true);
         back.setFocusable(true);
         back.setContentDescription("返回");
         IconView icon = new IconView(activity).type(IconView.Type.BACK);
-        icon.setColor(UiKit.INK);
-        back.addView(icon, new FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER));
+        icon.setColor(UiKit.ACCENT_DEEP);
+        back.addView(icon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
         back.setOnClickListener(view -> listener.onClose());
-        header.addView(back, new LinearLayout.LayoutParams(dp(38), dp(38)));
+        header.addView(back, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
         TextView title = UiKit.text(activity, "模块详情", 17f, UiKit.INK, true);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
@@ -137,12 +138,6 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         );
         titleParams.leftMargin = dp(12);
         header.addView(title, titleParams);
-
-        TextView close = UiKit.text(activity, "关闭", 11f, UiKit.MUTED, true);
-        close.setPadding(dp(8), dp(8), dp(2), dp(8));
-        close.setClickable(true);
-        close.setOnClickListener(view -> listener.onClose());
-        header.addView(close);
         return header;
     }
 
@@ -177,13 +172,6 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         titleColumn.addView(name);
         content.addView(hero);
 
-        LinearLayout stats = new LinearLayout(activity);
-        stats.setOrientation(HORIZONTAL);
-        stats.setPadding(0, dp(2), 0, dp(20));
-        content.addView(stats);
-        addStat(stats, "当前版本", "v" + app.version());
-        addStat(stats, "文件大小", app.size() > 0 ? UiKit.formatBytes(app.size()) : "—");
-        addStat(stats, "更新时间", app.updatedAt().isEmpty() ? "—" : app.updatedAt());
 
         if (installedVersion != null && !installedVersion.isEmpty()) {
             content.addView(section("版本", "VERSION"));
