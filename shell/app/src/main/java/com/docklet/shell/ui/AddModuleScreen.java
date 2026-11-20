@@ -882,24 +882,6 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     }
 
     private void addInstalledCategories(LinearLayout side, List<ModuleCategories.Category> categories) {
-        View home = categoryIconButton(
-                IconView.Type.SIGNPOST,
-                "首页",
-                ModuleCategories.DEFAULT_ID.equals(category),
-                0,
-                DEFAULT_SOFT,
-                view -> selectCategory(ModuleCategories.DEFAULT_ID),
-                view -> {
-                    openCategoryPage();
-                    return true;
-                }
-        );
-        side.addView(home);
-        railButtons.put(ModuleCategories.DEFAULT_ID, home);
-        railColors.put(ModuleCategories.DEFAULT_ID, DEFAULT_SOFT);
-        railOrder.add(ModuleCategories.DEFAULT_ID);
-        setRailIconColor(home, SIGNAL_RED);
-
         int unclassifiedCount = unclassifiedModules().size();
         if (unclassifiedCount > 0) {
             View inbox = categoryIconButton(
@@ -919,6 +901,24 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
             railColors.put(ModuleCategories.UNCLASSIFIED_ID, UNCLASSIFIED_SOFT);
             railOrder.add(ModuleCategories.UNCLASSIFIED_ID);
         }
+        View home = categoryIconButton(
+                IconView.Type.SIGNPOST,
+                "首页",
+                ModuleCategories.DEFAULT_ID.equals(category),
+                0,
+                DEFAULT_SOFT,
+                view -> selectCategory(ModuleCategories.DEFAULT_ID),
+                view -> {
+                    openCategoryPage();
+                    return true;
+                }
+        );
+        side.addView(home);
+        railButtons.put(ModuleCategories.DEFAULT_ID, home);
+        railColors.put(ModuleCategories.DEFAULT_ID, DEFAULT_SOFT);
+        railOrder.add(ModuleCategories.DEFAULT_ID);
+        setRailIconColor(home, SIGNAL_RED);
+
         if (!categories.isEmpty()) {
             side.addView(categoryDivider());
         }
