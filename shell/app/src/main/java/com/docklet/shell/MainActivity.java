@@ -2667,7 +2667,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     dialog.failure(IconView.Type.INFO, "无需安装", name, "已经是最新版本了");
                 } else if (ModuleException.VERSION_DOWNGRADE.equals(error.getCode())) {
                     dialog.dismiss();
-                    confirmDowngrade(name, () ->
+                    String[] versions = downgradeVersions(error);
+                    confirmDowngrade(name, versions[0], versions[1], () ->
                             installFromUrl(url, sha256, label, onSuccess, true));
                     return;
                 } else {
@@ -2744,7 +2745,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 main.post(() -> {
                     if (ModuleException.VERSION_DOWNGRADE.equals(error.getCode())) {
                         dialog.dismiss();
-                        confirmDowngrade("本地模块包", () ->
+                        String[] versions = downgradeVersions(error);
+                        confirmDowngrade("本地模块包", versions[0], versions[1], () ->
                                 installFromUri(uri, expectedSha256, true));
                         return;
                     }
@@ -2823,8 +2825,51 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     }
 
     /** 装旧版本前的确认：讲清风险，默认取消。 */
+    private LinearLayout versionStat(String label, String version) {
+        LinearLayout stat = new LinearLayout(this);
+        stat.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        TextView caption = UiKit.text(this, label, 10.5f, UiKit.FAINT, false);
+        stat.addView(caption);
+        TextView value = UiKit.text(
+                this,
+                version == null || version.isEmpty() ? "—" : "v" + version,
+                12.5f,
+                UiKit.INK,
+                false
+        );
+        LinearLayout.LayoutParams valueParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        valueParams.topMargin = dp(4);
+        stat.addView(value, valueParams);
+        stat.setLayoutParams(params);
+        return stat;
+    }
+
+    /** 从降级异常里取出「当前版本」和「包内版本」。 */
+    private String[] downgradeVersions(ModuleException error) {
+        String[] result = new String[]{"", ""};
+        String message = error == null ? "" : error.getMessage();
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("当前\\s*([0-9][0-9.]*)\\s*[，,]\\s*包内\\s*([0-9][0-9.]*)")
+                .matcher(message == null ? "" : message);
+        if (matcher.find()) {
+            result[0] = matcher.group(1);
+            result[1] = matcher.group(2);
+        }
+        return result;
+    }
+
     /** 装旧版本前的确认：居中弹窗，和安装弹窗同一套头部。 */
-    private void confirmDowngrade(String name, Runnable onContinue) {
+    private void confirmDowngrade(
+            String name,
+            String currentVersion,
+            String incomingVersion,
+            Runnable onContinue
+    ) {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setCancelable(true);
@@ -2839,9 +2884,9 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
         FrameLayout tile = new FrameLayout(this);
-        tile.setBackground(UiKit.rounded(this, UiKit.DANGER_SOFT, 13f));
-        IconView icon = new IconView(this).type(IconView.Type.INFO);
-        icon.setColor(UiKit.DANGER);
+        tile.setBackground(UiKit.rounded(this, UiKit.ACCENT_SOFT, 13f));
+        IconView icon = new IconView(this).type(IconView.Type.SPARK);
+        icon.setColor(UiKit.ACCENT_DEEP);
         tile.addView(icon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
         head.addView(tile, new LinearLayout.LayoutParams(dp(42), dp(42)));
         LinearLayout titles = new LinearLayout(this);
@@ -2855,6 +2900,16 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         head.addView(titles, titlesParams);
         content.addView(head);
 
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams statsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        statsParams.topMargin = dp(16);
+        content.addView(stats, statsParams);
+        stats.addView(versionStat("当前版本", currentVersion));
+        stats.addView(versionStat("先前版本", incomingVersion));
+
         TextView warning = UiKit.text(
                 this,
                 "安装旧版本可能导致模块异常、数据丢失。",
@@ -2866,7 +2921,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         LinearLayout.LayoutParams warningParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        warningParams.topMargin = dp(16);
+        warningParams.topMargin = dp(14);
         content.addView(warning, warningParams);
 
         LinearLayout actions = new LinearLayout(this);
