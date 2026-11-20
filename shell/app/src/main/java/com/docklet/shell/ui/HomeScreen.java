@@ -1349,6 +1349,21 @@ public final class HomeScreen extends LinearLayout {
         );
         footParams.topMargin = dp(20);
         content.addView(foot, footParams);
+
+        // 构建号写在版权下面，方便对照手里的安装包是不是最新构建。
+        TextView build = UiKit.label(
+                activity,
+                "BUILD " + BuildConfig.BUILD_STAMP,
+                8f,
+                UiKit.FAINT
+        );
+        build.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams buildParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        buildParams.topMargin = dp(6);
+        buildParams.bottomMargin = dp(6);
+        content.addView(build, buildParams);
         return scroll;
     }
 

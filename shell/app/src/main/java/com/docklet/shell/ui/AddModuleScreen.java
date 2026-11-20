@@ -528,11 +528,10 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
 
     private void rebuildBody() {
         if (contentHost == null) return;
-        contentHost.removeAllViews();
+        // Never detach the whole body: it owns the search field, and re-attaching
+        // it drops focus and closes the keyboard on every keystroke.
         if (activeTab != 0 && activeTab != 1) activeTab = 0;
-        {
-            buildTwoPane();
-        }
+        buildTwoPane();
     }
 
 
