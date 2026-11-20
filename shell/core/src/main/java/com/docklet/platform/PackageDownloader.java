@@ -93,6 +93,12 @@ public final class PackageDownloader {
                         "HTTPS 被重定向到 HTTP，已拒绝"
                 );
             }
+            if (status == 404 || status == 410) {
+                throw new ModuleException(
+                        ModuleException.REMOTE_NOT_FOUND,
+                        "文件不存在: HTTP " + status
+                );
+            }
             if (status < 200 || status >= 300) {
                 throw new ModuleException(
                         ModuleException.REMOTE_CATALOG_ERROR,

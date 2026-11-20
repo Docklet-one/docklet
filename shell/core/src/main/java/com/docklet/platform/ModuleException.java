@@ -26,6 +26,8 @@ public final class ModuleException extends Exception {
     public static final String FILE_TOO_LARGE = "FILE_TOO_LARGE";
     public static final String FILE_CONFLICT = "FILE_CONFLICT";
     public static final String REMOTE_CATALOG_ERROR = "REMOTE_CATALOG_ERROR";
+    /** 远端明确回了 404/410：文件还不存在或已下线。 */
+    public static final String REMOTE_NOT_FOUND = "REMOTE_NOT_FOUND";
     public static final String REMOTE_URL_REJECTED = "REMOTE_URL_REJECTED";
     public static final String REMOTE_HASH_MISMATCH = "REMOTE_HASH_MISMATCH";
     public static final String REMOTE_ID_MISMATCH = "REMOTE_ID_MISMATCH";

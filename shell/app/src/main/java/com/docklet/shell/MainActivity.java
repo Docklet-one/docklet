@@ -2569,6 +2569,17 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             return;
         }
         String name = label == null || label.isEmpty() ? "模块" : label;
+        if (!hasNetwork()) {
+            InstallDialog offline = InstallDialog.show(
+                    this,
+                    IconView.Type.DOWNLOAD,
+                    "安装失败",
+                    name
+            );
+            offline.failure(IconView.Type.INFO, "没有网络", name,
+                    "当前没有网络连接，请连上网络后重试");
+            return;
+        }
         InstallDialog dialog = InstallDialog.show(
                 this,
                 IconView.Type.DOWNLOAD,
@@ -2661,7 +2672,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                             IconView.Type.INFO,
                             "安装失败",
                             name,
-                            "请检查网络后重试；一直失败可联系 docklet@163.com"
+                            installFailureText(error)
                     );
                 }
                 if (ModuleException.INSTALL_FAILED.equals(error.getCode())
@@ -2739,7 +2750,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                             IconView.Type.INFO,
                             "安装失败",
                             "本地模块包",
-                            friendly(error.getCode(), error.getMessage())
+                            installFailureText(error)
                     );
                 });
             } catch (Exception error) {
@@ -2754,6 +2765,52 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 temp.delete();
             }
         });
+    }
+
+    /** 把安装失败翻译成用户能照做的一句话。 */
+    private String installFailureText(ModuleException error) {
+        String code = error == null ? "" : error.getCode();
+        if (ModuleException.REMOTE_NOT_FOUND.equals(code)) {
+            return "安装包还在发布，请稍后再试";
+        }
+        if (ModuleException.REMOTE_HASH_MISMATCH.equals(code)) {
+            return "安装包校验不通过，请重新下载";
+        }
+        if (ModuleException.REMOTE_CATALOG_ERROR.equals(code)
+                || ModuleException.REMOTE_URL_REJECTED.equals(code)) {
+            return "连接远端失败，请稍后再试";
+        }
+        if (ModuleException.PACKAGE_CORRUPT.equals(code)
+                || ModuleException.UNSAFE_ENTRY.equals(code)) {
+            return "安装包损坏，请重新下载";
+        }
+        if (ModuleException.MANIFEST_MISSING.equals(code)
+                || ModuleException.MANIFEST_INVALID.equals(code)
+                || ModuleException.ENTRY_MISSING.equals(code)
+                || ModuleException.INVALID_ID.equals(code)) {
+            return "安装包格式不对，请确认来源";
+        }
+        if (ModuleException.UNSUPPORTED_SHELL.equals(code)) {
+            return "这个模块需要更新的 Docklet";
+        }
+        return "这次没有装成功，请稍后再试；多次失败可联系 docklet@163.com";
+    }
+
+    /** 本机是否有可用网络（连上但没有外网也算没有）。 */
+    private boolean hasNetwork() {
+        try {
+            android.net.ConnectivityManager cm =
+                    (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            if (cm == null) return true;
+            android.net.Network network = cm.getActiveNetwork();
+            if (network == null) return false;
+            android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(network);
+            return caps != null
+                    && caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    && caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        } catch (Exception ignored) {
+            return true;
+        }
     }
 
     /** 装旧版本前的确认：讲清风险，默认取消。 */
