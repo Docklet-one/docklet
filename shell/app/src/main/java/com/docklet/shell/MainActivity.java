@@ -118,6 +118,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private AddModuleScreen onlineScreen;
     private AddModuleScreen.Listener appListener;
     private AddModuleScreen pendingDemoAdd;
+    /** The page that opened the detail, so install/uninstall refresh the right one. */
+    private AddModuleScreen demoDetailOrigin;
     private AddModuleScreen detailOriginAdd;
     private Runnable pendingModuleReturn;
     private boolean uninstallFromAdd;
@@ -705,6 +707,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
                     @Override
                     public void onDemoDetails(DemoApp app, String state) {
+                        demoDetailOrigin = addScreen;
                         pendingDemoAdd = addScreen;
                         showDemoDetail(app, state);
                     }
@@ -889,7 +892,11 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
         @Override
         public void onDemoDetails(DemoApp app, String state) {
-            base.onDemoDetails(app, state);
+            // The detail sits on top of the online overlay: remember that, not
+            // the installed page, so returning lands back on 在线模块.
+            demoDetailOrigin = onlineScreen;
+            pendingDemoAdd = null;
+            showDemoDetail(app, state);
         }
 
         @Override
@@ -990,11 +997,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                                 screenRef[0].setState("已安装", module.version());
                             }
                             if (inventory != null) {
-                                inventory.refresh(true, modules -> {
-                                    if (pendingDemoAdd != null) {
-                                        pendingDemoAdd.refreshInstalled(modules);
-                                    }
-                                });
+                                inventory.refresh(true, modules -> refreshScreens(modules));
                             }
                         });
                     }
@@ -1006,7 +1009,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                             showSnack("模块未安装");
                             return;
                         }
-                        prepareDemoDetailReturn(screenRef[0], pendingDemoAdd);
+                        prepareDemoDetailReturn(screenRef[0], demoDetailOrigin);
                         closeOverlay();
                         onOpenModule(module);
                     }
@@ -1014,20 +1017,18 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     @Override
                     public void onUninstall() {
                         InstalledModule module = installedModule(app.id());
-                        if (module == null) return;
-                        AddModuleScreen add = pendingDemoAdd;
+                        if (module == null) {
+                            if (screenRef[0] != null) screenRef[0].setState("", null);
+                            return;
+                        }
                         uninstallFromAdd = false;
                         confirmUninstall(module, remaining -> {
                             if (screenRef[0] != null) {
                                 screenRef[0].setState("", null);
                             }
-                            if (add != null) {
-                                add.refreshInstalled(remaining);
-                            }
+                            refreshScreens(remaining);
                             if (inventory != null) {
-                                inventory.refresh(true, modules -> {
-                                    if (add != null) add.refreshInstalled(modules);
-                                });
+                                inventory.refresh(true, modules -> refreshScreens(modules));
                             }
                         });
                     }
@@ -1049,8 +1050,15 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         }
     }
 
+    /** Pushes a fresh install list into every live catalog/list page. */
+    private void refreshScreens(List<InstalledModule> modules) {
+        if (addScreen != null) addScreen.refreshInstalled(modules);
+        if (onlineScreen != null) onlineScreen.refreshInstalled(modules);
+    }
+
     private void restoreDemoAdd() {
-        AddModuleScreen add = pendingDemoAdd;
+        AddModuleScreen origin = demoDetailOrigin;
+        demoDetailOrigin = null;
         pendingDemoAdd = null;
         boolean backHome = demoDetailReturnHome;
         demoDetailReturnHome = false;
@@ -1059,11 +1067,15 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             showHome();
             return;
         }
-        if (add == null) {
+        if (origin != null && origin == onlineScreen && onlineScreen.getParent() != null) {
+            // Returning to 在线模块: the overlay is still underneath the detail.
+            return;
+        }
+        if (origin == null) {
             showAddScreen();
             return;
         }
-        showAppPage(add);
+        showAppPage(origin);
     }
 
     private void prepareAddModuleReturn() {
@@ -1177,6 +1189,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         detailOriginAdd = null;
         demoDetailReturnHome = !returnToAdd;
         pendingDemoAdd = returnToAdd ? origin : null;
+        demoDetailOrigin = returnToAdd ? origin : null;
         showDemoDetail(demoAppFor(module), "");
     }
 
