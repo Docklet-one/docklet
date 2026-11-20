@@ -20,8 +20,22 @@ public final class PackageDownloader {
      * Downloads a package from a user-supplied URL without a catalog record.
      * The caller owns the returned temporary file and must delete it.
      */
+    /** 下载进度回调，total 为 -1 表示服务端没给长度。 */
+    public interface ProgressListener {
+        void onProgress(long received, long total);
+    }
+
     public static File downloadUrl(String urlText, String expectedSha256, File cacheDir)
             throws ModuleException {
+        return downloadUrl(urlText, expectedSha256, cacheDir, null);
+    }
+
+    public static File downloadUrl(
+            String urlText,
+            String expectedSha256,
+            File cacheDir,
+            ProgressListener listener
+    ) throws ModuleException {
         if (urlText == null || urlText.trim().isEmpty()) {
             throw new ModuleException(ModuleException.REMOTE_URL_REJECTED, "缺少模块包 URL");
         }
@@ -84,12 +98,14 @@ public final class PackageDownloader {
             }
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             long total = 0L;
+            long expected = declared > 0 ? declared : -1L;
             try (InputStream in = connection.getInputStream();
                  FileOutputStream out = new FileOutputStream(temp)) {
                 byte[] buffer = new byte[16 * 1024];
                 int read;
                 while ((read = in.read(buffer)) != -1) {
                     total += read;
+                    if (listener != null) listener.onProgress(total, expected);
                     if (total > ModuleManager.MAX_PACKAGE_BYTES) {
                         throw new ModuleException(
                                 ModuleException.PACKAGE_TOO_LARGE,

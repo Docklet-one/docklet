@@ -58,6 +58,7 @@ import com.docklet.shell.runtime.DockletMessageService;
 import com.docklet.shell.runtime.MemoryUsage;
 import com.docklet.shell.runtime.ModuleCategories;
 import com.docklet.shell.runtime.ModuleInventory;
+import com.docklet.shell.ui.InstallDialog;
 import com.docklet.shell.runtime.ModuleSessionStore;
 import com.docklet.shell.runtime.ModuleSlotManager;
 import com.docklet.shell.runtime.ModuleUsage;
@@ -2625,7 +2626,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             showSnack("目录里没有这个模块的下载地址");
             return;
         }
-        installFromUrl(app.url(), app.sha256(), onSuccess);
+        installFromUrl(app.url(), app.sha256(), app.name(), onSuccess);
     }
 
     private void confirmUrlInstall(String url, String sha256) {
@@ -2707,16 +2708,17 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     }
 
     private void installFromUrl(String url, String sha256) {
-        installFromUrl(url, sha256, null);
+        installFromUrl(url, sha256, null, null);
     }
 
     private void installFromUrl(
             String url,
             String sha256,
+            String label,
             java.util.function.Consumer<InstalledModule> onSuccess
     ) {
         if (moduleAwaitingResult) {
-            stopActiveModule(() -> installFromUrl(url, sha256, onSuccess));
+            stopActiveModule(() -> installFromUrl(url, sha256, label, onSuccess));
             return;
         }
         String host;
@@ -2725,48 +2727,81 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         } catch (Exception error) {
             host = null;
         }
-        Dialog progress = showProgress(
-                "正在下载模块包",
+        String title = label == null || label.isEmpty() ? "正在安装模块" : "安装 " + label;
+        InstallDialog dialog = InstallDialog.show(
+                this,
+                title,
                 host == null || host.isEmpty() ? url : host
         );
         io.execute(() -> {
-            File temp = null;
-            try {
-                temp = PackageDownloader.downloadUrl(
-                        url,
-                        sha256,
-                        new File(getCacheDir(), "url-packages")
-                );
-                InstalledModule module = manager.install(temp);
-                main.post(() -> {
-                    dismissQuietly(progress);
-                    if (onSuccess != null) {
-                        onSuccess.accept(module);
-                    } else {
-                        showHome();
-                        showSnack("已安装 " + module.name() + " v" + module.version());
-                    }
-                });
-            } catch (ModuleException error) {
-                main.post(() -> {
-                    dismissQuietly(progress);
-                    showErrorSheet(
-                            "链接安装失败",
-                            error.getCode(),
-                            friendly(error.getCode(), error.getMessage())
+            ModuleException failure = null;
+            // 失败自动重试一次：网络抖动很常见，手点重试反而慢。
+            for (int attempt = 1; attempt <= 2 && failure == null; attempt += 1) {
+                final int round = attempt;
+                main.post(() -> dialog.stage(round == 1 ? "获取中…" : "重试获取中…", 0));
+                File temp = null;
+                try {
+                    temp = PackageDownloader.downloadUrl(
+                            url,
+                            sha256,
+                            new File(getCacheDir(), "url-packages"),
+                            (received, total) -> {
+                                int percent = total > 0
+                                        ? (int) Math.min(100, received * 100 / total)
+                                        : 0;
+                                String text = total > 0
+                                        ? (round == 1 ? "获取中… " : "重试获取中… ") + percent + "%"
+                                        : (round == 1 ? "获取中… " : "重试获取中… ")
+                                                + (received / 1024) + " KB";
+                                main.post(() -> dialog.stage(text, percent));
+                            }
                     );
-                });
-            } catch (Exception error) {
-                main.post(() -> {
-                    dismissQuietly(progress);
-                    showErrorSheet("链接安装失败", "INSTALL_FAILED", safeMessage(error));
-                });
-            } finally {
-                if (temp != null) {
+                    final File ready = temp;
+                    temp = null;
+                    main.post(() -> dialog.stage("校验并安装…", 100));
+                    InstalledModule module = manager.install(ready);
                     //noinspection ResultOfMethodCallIgnored
-                    temp.delete();
+                    ready.delete();
+                    main.post(() -> {
+                        dialog.success("已安装 " + module.name() + " v" + module.version());
+                        if (onSuccess != null) {
+                            onSuccess.accept(module);
+                        } else {
+                            showHome();
+                            showSnack("已安装 " + module.name() + " v" + module.version());
+                        }
+                    });
+                    return;
+                } catch (ModuleException error) {
+                    failure = error;
+                } catch (Exception error) {
+                    failure = new ModuleException(
+                            ModuleException.INSTALL_FAILED,
+                            safeMessage(error)
+                    );
+                } finally {
+                    if (temp != null) {
+                        //noinspection ResultOfMethodCallIgnored
+                        temp.delete();
+                    }
                 }
             }
+            ModuleException error = failure;
+            main.post(() -> {
+                if (error == null) return;
+                if (ModuleException.VERSION_CONFLICT.equals(error.getCode())) {
+                    dialog.failure("已经是最新版本了");
+                } else if (ModuleException.VERSION_DOWNGRADE.equals(error.getCode())) {
+                    dialog.failure("本地版本比目录里更新，不需要安装");
+                } else {
+                    dialog.failure("这次没有装成功，请检查网络后重试。"
+                            + "如果一直失败，可以稍后再试，或联系 docklet@163.com");
+                }
+                if (ModuleException.INSTALL_FAILED.equals(error.getCode())
+                        || ModuleException.REMOTE_HASH_MISMATCH.equals(error.getCode())) {
+                    showSnack(friendly(error.getCode(), error.getMessage()));
+                }
+            });
         });
     }
 
@@ -2836,31 +2871,31 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     }
 
     private void performRollback(InstalledModule module) {
-        Dialog progress = showProgress("正在回滚", "切换 current 指针，数据保持不动");
+        InstallDialog dialog = InstallDialog.show(
+                this,
+                "正在回滚",
+                "v" + module.version() + " → v" + module.previousVersion()
+        );
         io.execute(() -> {
             try {
+                main.post(() -> dialog.stage("切换版本…", 40));
                 InstalledModule rolled = manager.rollback(module.id());
                 main.post(() -> {
-                    dismissQuietly(progress);
+                    dialog.stage("切换版本…", 100);
+                    dialog.success("已回滚到 v" + rolled.version());
                     if (demoDetailScreen != null) {
                         demoDetailScreen.setState(
                                 "已安装",
                                 rolled.version(),
                                 rolled.previousVersion()
                         );
-                    } else {
-                        showHome();
                     }
                     if (inventory != null) {
                         inventory.refresh(true, modules -> refreshScreens(modules));
                     }
-                    showSnack("已回滚到 v" + rolled.version());
                 });
             } catch (ModuleException error) {
-                main.post(() -> {
-                    dismissQuietly(progress);
-                    showErrorSheet("回滚失败", error.getCode(), friendly(error.getCode(), error.getMessage()));
-                });
+                main.post(() -> dialog.failure(friendly(error.getCode(), error.getMessage())));
             }
         });
     }
