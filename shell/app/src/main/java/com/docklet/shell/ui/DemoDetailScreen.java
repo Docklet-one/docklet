@@ -189,26 +189,20 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
             content.addView(section("版本", "VERSION"));
             content.addView(detailLine("当前", "v" + installedVersion));
             if (previousVersion != null && !previousVersion.isEmpty()) {
-                LinearLayout row = new LinearLayout(activity);
-                row.setOrientation(HORIZONTAL);
-                row.setGravity(Gravity.CENTER_VERTICAL);
-                row.setPadding(0, dp(10), 0, dp(10));
-                TextView label = UiKit.text(activity, "上一版", 12.5f, UiKit.MUTED, false);
-                row.addView(label, new LinearLayout.LayoutParams(
-                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                content.addView(versionActionRow(
+                        "上一版",
+                        "v" + previousVersion,
+                        "回滚",
+                        () -> listener.onRollback()
                 ));
-                TextView value = UiKit.text(activity, "v" + previousVersion, 12.5f, UiKit.MUTED, false);
-                LinearLayout.LayoutParams valueParams = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                );
-                valueParams.rightMargin = dp(12);
-                row.addView(value, valueParams);
-                TextView rollback = UiKit.text(activity, "回滚", 12.5f, UiKit.ACCENT_DEEP, true);
-                rollback.setPadding(dp(6), dp(2), dp(6), dp(2));
-                rollback.setBackground(UiKit.ripple(activity, UiKit.ACCENT_SOFT, 9f));
-                rollback.setOnClickListener(view -> listener.onRollback());
-                row.addView(rollback);
-                content.addView(row);
+            }
+            if (com.docklet.platform.SemVer.compare(installedVersion, app.version()) < 0) {
+                content.addView(versionActionRow(
+                        "发现更新",
+                        "v" + app.version(),
+                        "更新",
+                        () -> listener.onInstall()
+                ));
             }
         }
 
@@ -352,12 +346,11 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         bar.setPadding(dp(20), dp(10), dp(20), dp(16));
         bar.setBackgroundColor(UiKit.BG);
 
-        boolean installed = isInstalled();
-        boolean update = isUpdate();
-        boolean hasInstalled = installed || update;
-        TextView action = darkButton(installed
-                ? "打开"
-                : update ? "更新" : "安装");
+        // 主按钮只表达“能不能进去”：装了就是打开，没装就是安装。
+        // 更新与回滚放在版本区块里，不挤占主操作。
+        boolean installed = isInstalled() || isUpdate();
+        boolean hasInstalled = installed;
+        TextView action = darkButton(installed ? "打开" : "安装");
         action.setOnClickListener(view -> {
             if (installed) {
                 listener.onOpen();
@@ -447,6 +440,34 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
             default:
                 return capability;
         }
+    }
+
+    private View versionActionRow(
+            String label,
+            String value,
+            String action,
+            Runnable onClick
+    ) {
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(10), 0, dp(10));
+        TextView name = UiKit.text(activity, label, 12.5f, UiKit.MUTED, false);
+        row.addView(name, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        ));
+        TextView version = UiKit.text(activity, value, 12.5f, UiKit.MUTED, false);
+        LinearLayout.LayoutParams versionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        versionParams.rightMargin = dp(12);
+        row.addView(version, versionParams);
+        TextView button = UiKit.text(activity, action, 12.5f, UiKit.ACCENT_DEEP, true);
+        button.setPadding(dp(8), dp(3), dp(8), dp(3));
+        button.setBackground(UiKit.ripple(activity, UiKit.ACCENT_SOFT, 9f));
+        button.setOnClickListener(view -> onClick.run());
+        row.addView(button);
+        return row;
     }
 
     private View section(String label, String tag) {

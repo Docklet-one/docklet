@@ -120,6 +120,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private AddModuleScreen pendingDemoAdd;
     /** The page that opened the detail, so install/uninstall refresh the right one. */
     private AddModuleScreen demoDetailOrigin;
+    /** The detail page currently on screen (null when closed). */
+    private DemoDetailScreen demoDetailScreen;
     private AddModuleScreen detailOriginAdd;
     private Runnable pendingModuleReturn;
     private boolean uninstallFromAdd;
@@ -1050,6 +1052,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 }
         );
         screenRef[0] = screen;
+        demoDetailScreen = screen;
         showOverlay(screen);
     }
 
@@ -1074,6 +1077,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private void restoreDemoAdd() {
         AddModuleScreen origin = demoDetailOrigin;
         demoDetailOrigin = null;
+        demoDetailScreen = null;
         pendingDemoAdd = null;
         boolean backHome = demoDetailReturnHome;
         demoDetailReturnHome = false;
@@ -2838,7 +2842,18 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 InstalledModule rolled = manager.rollback(module.id());
                 main.post(() -> {
                     dismissQuietly(progress);
-                    showHome();
+                    if (demoDetailScreen != null) {
+                        demoDetailScreen.setState(
+                                "已安装",
+                                rolled.version(),
+                                rolled.previousVersion()
+                        );
+                    } else {
+                        showHome();
+                    }
+                    if (inventory != null) {
+                        inventory.refresh(true, modules -> refreshScreens(modules));
+                    }
                     showSnack("已回滚到 v" + rolled.version());
                 });
             } catch (ModuleException error) {
