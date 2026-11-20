@@ -120,6 +120,8 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     private final Map<String, Integer> railColors = new HashMap<>();
     private final List<String> railOrder = new ArrayList<>();
     private boolean categorySwipeConsumed;
+    /** 在线模块页：只显示尚未安装的条目（离开页面即重置）。 */
+    private boolean onlyUninstalled;
 
     private static final int SIGNAL_RED = 0xFFD94841;
     private static final int DEFAULT_SOFT = 0xFFFFE8E5;
@@ -242,9 +244,14 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         refresh.setOnClickListener(view -> listener.onRefreshCatalog());
         actions.addView(refresh, actionChipSize(0));
         actions.addView(headerChip(IconView.Type.NETWORK, "切换仓库"), actionChipSize(12));
-        View localInstall = headerChip(IconView.Type.DOWNLOAD, "本地安装");
-        localInstall.setOnClickListener(view -> listener.onOpenLocalInstall());
-        actions.addView(localInstall, actionChipSize(12));
+        View filter = headerChip(IconView.Type.DOWNLOAD, "只看未安装");
+        filter.setOnClickListener(view -> {
+            onlyUninstalled = !onlyUninstalled;
+            paintFilterChip(filter, onlyUninstalled);
+            rebuildBody();
+        });
+        paintFilterChip(filter, onlyUninstalled);
+        actions.addView(filter, actionChipSize(12));
         hrow.addView(actions);
 
         header.addView(hrow, new LinearLayout.LayoutParams(
@@ -365,6 +372,25 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     }
 
     /** Square icon button used by the toolbar above the search field. */
+    private void paintFilterChip(View chip, boolean active) {
+        if (chip == null) return;
+        chip.setBackground(UiKit.ripple(
+                activity,
+                active ? UiKit.ACCENT_SOFT : UiKit.SURFACE_SOFT,
+                10f
+        ));
+        if (chip instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) chip;
+            for (int i = 0; i < group.getChildCount(); i += 1) {
+                android.view.View child = group.getChildAt(i);
+                if (child instanceof IconView) {
+                    ((IconView) child).setColor(active ? UiKit.ACCENT_DEEP : UiKit.MUTED);
+                }
+            }
+        }
+        chip.setContentDescription(active ? "只看未安装（已开启）" : "只看未安装");
+    }
+
     private View headerChip(IconView.Type type, String description) {
         FrameLayout chip = new FrameLayout(activity);
         chip.setBackground(UiKit.ripple(activity, UiKit.SURFACE_SOFT, 10f));
@@ -1097,6 +1123,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         }
         int count = 0;
         for (DemoApp app : demoApps == null ? new ArrayList<DemoApp>() : demoApps) {
+            if (onlyUninstalled && installed.containsKey(app.id())) continue;
             if (!matches(app.kind(), app.name(), app.id(), app.description())) continue;
             addSpacedRow(list, buildDemoRow(app));
             count += 1;
