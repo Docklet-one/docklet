@@ -122,7 +122,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
 
         // 与在线模块等页面相同的返回块：暖色底 + 箭头。
         FrameLayout back = new FrameLayout(activity);
-        back.setBackground(UiKit.ripple(activity, UiKit.ACCENT_SOFT, 13f));
+        back.setBackground(UiKit.ripple(activity, UiKit.ACCENT_SOFT, 9f));
         back.setClickable(true);
         back.setFocusable(true);
         back.setContentDescription("返回");
@@ -173,6 +173,15 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         content.addView(hero);
 
 
+        LinearLayout stats = new LinearLayout(activity);
+        stats.setOrientation(HORIZONTAL);
+        stats.setPadding(0, dp(2), 0, dp(20));
+        content.addView(stats);
+        addStat(stats, "文件大小", app.size() > 0 ? UiKit.formatBytes(app.size()) : "—");
+        addStat(stats, "更新时间", app.updatedAt().isEmpty() ? "—" : app.updatedAt());
+        // 第三格留空，保持项目原来三等分的排版（当前版本那一列被去掉了）。
+        stats.addView(new View(activity), new LinearLayout.LayoutParams(0, 1, 1f));
+
         if (installedVersion != null && !installedVersion.isEmpty()) {
             content.addView(section("版本", "VERSION"));
             content.addView(detailLine("当前", "v" + installedVersion));
@@ -193,15 +202,6 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
                 ));
             }
         }
-
-        LinearLayout stats = new LinearLayout(activity);
-        stats.setOrientation(HORIZONTAL);
-        stats.setPadding(0, dp(2), 0, dp(20));
-        content.addView(stats);
-        addStat(stats, "文件大小", app.size() > 0 ? UiKit.formatBytes(app.size()) : "—");
-        addStat(stats, "更新时间", app.updatedAt().isEmpty() ? "—" : app.updatedAt());
-        // 第三格留空，保持项目原来三等分的排版（当前版本那一列被去掉了）。
-        stats.addView(new View(activity), new LinearLayout.LayoutParams(0, 1, 1f));
 
         String intro = app.description().isEmpty() ? app.tagline() : app.description();
         if (!intro.isEmpty()) {
