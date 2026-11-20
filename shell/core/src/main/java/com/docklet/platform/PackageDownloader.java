@@ -36,6 +36,16 @@ public final class PackageDownloader {
             File cacheDir,
             ProgressListener listener
     ) throws ModuleException {
+        return downloadUrl(urlText, expectedSha256, cacheDir, listener, null);
+    }
+
+    public static File downloadUrl(
+            String urlText,
+            String expectedSha256,
+            File cacheDir,
+            ProgressListener listener,
+            java.util.function.BooleanSupplier cancelled
+    ) throws ModuleException {
         if (urlText == null || urlText.trim().isEmpty()) {
             throw new ModuleException(ModuleException.REMOTE_URL_REJECTED, "缺少模块包 URL");
         }
@@ -106,6 +116,9 @@ public final class PackageDownloader {
                 while ((read = in.read(buffer)) != -1) {
                     total += read;
                     if (listener != null) listener.onProgress(total, expected);
+                    if (cancelled != null && cancelled.getAsBoolean()) {
+                        throw new ModuleException(ModuleException.INSTALL_FAILED, "已取消");
+                    }
                     if (total > ModuleManager.MAX_PACKAGE_BYTES) {
                         throw new ModuleException(
                                 ModuleException.PACKAGE_TOO_LARGE,

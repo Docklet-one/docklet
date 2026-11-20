@@ -2721,18 +2721,18 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             stopActiveModule(() -> installFromUrl(url, sha256, label, onSuccess));
             return;
         }
-        String host;
-        try {
-            host = Uri.parse(url).getHost();
-        } catch (Exception error) {
-            host = null;
-        }
-        String title = label == null || label.isEmpty() ? "正在安装模块" : "安装 " + label;
+        String name = label == null || label.isEmpty() ? "模块" : label;
         InstallDialog dialog = InstallDialog.show(
                 this,
-                title,
-                host == null || host.isEmpty() ? url : host
+                IconView.Type.DOWNLOAD,
+                "正在安装",
+                name
         );
+        final boolean[] cancelled = {false};
+        dialog.onCancel(() -> {
+            cancelled[0] = true;
+            dialog.dismiss();
+        });
         io.execute(() -> {
             ModuleException failure = null;
             // 失败自动重试一次：网络抖动很常见，手点重试反而慢。
@@ -2749,12 +2749,14 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                                 int percent = total > 0
                                         ? (int) Math.min(100, received * 100 / total)
                                         : 0;
+                                if (cancelled[0]) return;
                                 String text = total > 0
                                         ? (round == 1 ? "获取中… " : "重试获取中… ") + percent + "%"
                                         : (round == 1 ? "获取中… " : "重试获取中… ")
                                                 + (received / 1024) + " KB";
                                 main.post(() -> dialog.stage(text, percent));
-                            }
+                            },
+                            () -> cancelled[0]
                     );
                     final File ready = temp;
                     temp = null;
@@ -2763,7 +2765,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     //noinspection ResultOfMethodCallIgnored
                     ready.delete();
                     main.post(() -> {
-                        dialog.success("已安装 " + module.name() + " v" + module.version());
+                        dialog.success(
+                                IconView.Type.CHECK,
+                                "安装完成",
+                                module.name(),
+                                "✓ 已安装 " + module.name() + " · v" + module.version()
+                        );
                         if (onSuccess != null) {
                             onSuccess.accept(module);
                         } else {
@@ -2788,14 +2795,19 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             }
             ModuleException error = failure;
             main.post(() -> {
+                if (cancelled[0]) return;
                 if (error == null) return;
                 if (ModuleException.VERSION_CONFLICT.equals(error.getCode())) {
-                    dialog.failure("已经是最新版本了");
+                    dialog.failure(IconView.Type.INFO, "无需安装", name, "已经是最新版本了");
                 } else if (ModuleException.VERSION_DOWNGRADE.equals(error.getCode())) {
-                    dialog.failure("本地版本比目录里更新，不需要安装");
+                    dialog.failure(IconView.Type.INFO, "无需安装", name, "本地版本比目录里更新");
                 } else {
-                    dialog.failure("这次没有装成功，请检查网络后重试。"
-                            + "如果一直失败，可以稍后再试，或联系 docklet@163.com");
+                    dialog.failure(
+                            IconView.Type.INFO,
+                            "安装失败",
+                            name,
+                            "请检查网络后重试；一直失败可联系 docklet@163.com"
+                    );
                 }
                 if (ModuleException.INSTALL_FAILED.equals(error.getCode())
                         || ModuleException.REMOTE_HASH_MISMATCH.equals(error.getCode())) {
@@ -2873,8 +2885,9 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private void performRollback(InstalledModule module) {
         InstallDialog dialog = InstallDialog.show(
                 this,
+                IconView.Type.REFRESH,
                 "正在回滚",
-                "v" + module.version() + " → v" + module.previousVersion()
+                module.name()
         );
         io.execute(() -> {
             try {
@@ -2882,7 +2895,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 InstalledModule rolled = manager.rollback(module.id());
                 main.post(() -> {
                     dialog.stage("切换版本…", 100);
-                    dialog.success("已回滚到 v" + rolled.version());
+                    dialog.success(
+                            IconView.Type.CHECK,
+                            "回滚完成",
+                            module.name(),
+                            "✓ 当前版本 v" + rolled.version()
+                    );
                     if (demoDetailScreen != null) {
                         demoDetailScreen.setState(
                                 "已安装",
@@ -2895,7 +2913,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     }
                 });
             } catch (ModuleException error) {
-                main.post(() -> dialog.failure(friendly(error.getCode(), error.getMessage())));
+                main.post(() -> dialog.failure(
+                        IconView.Type.INFO,
+                        "回滚失败",
+                        module.name(),
+                        "请稍后再试"
+                ));
             }
         });
     }
@@ -2915,8 +2938,9 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         }
         InstallDialog dialog = InstallDialog.show(
                 this,
-                "卸载 " + module.name(),
-                "v" + module.version() + (deleteData ? " · 同时删除数据" : " · 保留数据")
+                IconView.Type.TRASH,
+                "正在卸载",
+                module.name()
         );
         dialog.stage("正在移除…", 30);
         // The module is leaving: drop its background subscription so the
@@ -2934,7 +2958,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 List<InstalledModule> remaining = manager.listInstalled();
                 main.post(() -> {
                     dialog.stage("正在移除…", 100);
-                    dialog.success("已卸载 " + module.name());
+                    dialog.success(
+                            IconView.Type.CHECK,
+                            "已卸载",
+                            module.name(),
+                            deleteData ? "模块与数据都已删除" : "模块已移除，数据保留"
+                    );
                     if (after != null) {
                         after.accept(remaining);
                     } else {
@@ -2944,12 +2973,22 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             } catch (ModuleException error) {
                 main.post(() -> {
                     uninstallFromAdd = false;
-                    dialog.failure(friendly(error.getCode(), error.getMessage()));
+                    dialog.failure(
+                            IconView.Type.INFO,
+                            "卸载失败",
+                            module.name(),
+                            friendly(error.getCode(), error.getMessage())
+                    );
                 });
             } catch (Exception error) {
                 main.post(() -> {
                     uninstallFromAdd = false;
-                    dialog.failure("卸载没有完成，请稍后再试");
+                    dialog.failure(
+                            IconView.Type.INFO,
+                            "卸载失败",
+                            module.name(),
+                            "请稍后再试"
+                    );
                 });
             }
         });
