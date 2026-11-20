@@ -2823,10 +2823,17 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     }
 
     /** 装旧版本前的确认：讲清风险，默认取消。 */
+    /** 装旧版本前的确认：居中弹窗，和安装弹窗同一套头部。 */
     private void confirmDowngrade(String name, Runnable onContinue) {
-        SheetDialog sheet = new SheetDialog(this);
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCancelable(true);
+
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(20), dp(20), dp(16));
+        content.setBackground(UiKit.rounded(this, UiKit.SURFACE, 24f));
+        content.setElevation(dp(8));
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
@@ -2865,11 +2872,11 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         TextView cancel = UiKit.secondaryButton(this, "取消");
-        cancel.setOnClickListener(view -> sheet.dismiss());
+        cancel.setOnClickListener(view -> dialog.dismiss());
         actions.addView(cancel, new LinearLayout.LayoutParams(0, dp(44), 1f));
         TextView go = UiKit.primaryButton(this, "继续");
         go.setOnClickListener(view -> {
-            sheet.dismiss();
+            dialog.dismiss();
             onContinue.run();
         });
         LinearLayout.LayoutParams goParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
@@ -2881,8 +2888,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         actionsParams.topMargin = dp(20);
         content.addView(actions, actionsParams);
 
-        sheet.setBody(content);
-        sheet.show();
+        dialog.setContentView(content);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setLayout(dp(320), ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        dialog.show();
     }
 
     private String sha256(File file) throws Exception {
