@@ -119,6 +119,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private AddModuleScreen onlineScreen;
     /** 本地安装页当前是否作为覆盖层打开。 */
     private boolean localInstallOpen;
+    /** 缓存的 shell.json 信息，设置页「版本更新」用。 */
+    private com.docklet.shell.demo.ShellUpdate.Info shellInfo;
     private AddModuleScreen.Listener appListener;
     private AddModuleScreen pendingDemoAdd;
     /** The page that opened the detail, so install/uninstall refresh the right one. */
@@ -629,6 +631,86 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     public void onBrowseOnline() {
         showAddScreen();
         main.post(this::openOnlinePage);
+    }
+
+    /** 设置页「版本更新」右侧文案：当前版本，或最新版本（可更新）。 */
+    @Override
+    public String shellUpdateLabel() {
+        com.docklet.shell.demo.ShellUpdate.Info info = shellUpdateInfo();
+        if (info != null
+                && com.docklet.platform.SemVer.compare(UiKit.SHELL_VERSION, info.version) < 0) {
+            return info.version + "（可更新）";
+        }
+        return UiKit.SHELL_VERSION;
+    }
+
+    @Override
+    public void onShellUpdate() {
+        com.docklet.shell.demo.ShellUpdate.Info info = shellUpdateInfo();
+        boolean hasUpdate = info != null
+                && com.docklet.platform.SemVer.compare(UiKit.SHELL_VERSION, info.version) < 0;
+        if (!hasUpdate) {
+            showCenterBanner("已是最新版本");
+            return;
+        }
+        if (info.url == null || info.url.isEmpty()) {
+            showCenterBanner("还没有下载地址");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(info.url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception error) {
+            showCenterBanner("没有可用的浏览器");
+        }
+    }
+
+    @Override
+    public void refreshShellUpdate() {
+        if (!com.docklet.shell.demo.ShellUpdate.cacheStale(this)) {
+            shellInfo = com.docklet.shell.demo.ShellUpdate.cached(this);
+            if (home != null) home.refreshShellUpdateLabel();
+            return;
+        }
+        io.execute(() -> {
+            com.docklet.shell.demo.ShellUpdate.Info info =
+                    com.docklet.shell.demo.ShellUpdate.refresh(this);
+            main.post(() -> {
+                if (info != null) shellInfo = info;
+                if (home != null) home.refreshShellUpdateLabel();
+            });
+        });
+    }
+
+    private com.docklet.shell.demo.ShellUpdate.Info shellUpdateInfo() {
+        if (shellInfo == null) {
+            shellInfo = com.docklet.shell.demo.ShellUpdate.cached(this);
+        }
+        return shellInfo;
+    }
+
+    /** 屏幕中间的小横幅，用来提示「已是最新版本」这类短信息。 */
+    private void showCenterBanner(String text) {
+        ViewGroup root = findViewById(android.R.id.content);
+        if (root == null) return;
+        final TextView banner = UiKit.text(this, text, 12.5f, android.graphics.Color.WHITE, false);
+        banner.setGravity(Gravity.CENTER);
+        banner.setPadding(dp(16), dp(10), dp(16), dp(10));
+        banner.setBackground(UiKit.rounded(this, 0xE6241F19, 99f));
+        banner.setAlpha(0f);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+        );
+        root.addView(banner, params);
+        banner.animate().alpha(1f).setDuration(120).withEndAction(() ->
+                banner.postDelayed(() -> banner.animate()
+                        .alpha(0f)
+                        .setDuration(200)
+                        .withEndAction(() -> root.removeView(banner))
+                        .start(), 1200L)
+        ).start();
     }
 
     private void stopActiveModule(Runnable action) {

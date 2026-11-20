@@ -60,6 +60,15 @@ public final class HomeScreen extends LinearLayout {
         /** 打开「在线模块」页（空状态里的「从在线模块添加」）。 */
         void onBrowseOnline();
 
+        /** 设置页「版本更新」右侧要显示的文案。 */
+        String shellUpdateLabel();
+
+        /** 点「版本更新」：已最新则提示，可更新则去下载。 */
+        void onShellUpdate();
+
+        /** 设置页打开时触发一次版本检查。 */
+        void refreshShellUpdate();
+
         void onInstallFromFile();
 
         void onShowModuleDetails(InstalledModule module);
@@ -105,6 +114,7 @@ public final class HomeScreen extends LinearLayout {
     private View favoriteSection;
     private TextView countView;
     private View emptyState;
+    private TextView shellUpdateValue;
     private String query = "";
     private int activeTab;
     private boolean switchingTab;
@@ -1230,6 +1240,8 @@ public final class HomeScreen extends LinearLayout {
     }
 
     private View buildSettingsPage() {
+        // 打开设置页时看一眼壳有没有新版本（缓存过期才真的请求）。
+        if (listener != null) listener.refreshShellUpdate();
         LinearLayout content = new LinearLayout(activity);
         ScrollView scroll = scrollPage(content);
         content.addView(buildTopbar("设置", "LOCAL FIRST", false), new LinearLayout.LayoutParams(
@@ -1347,6 +1359,7 @@ public final class HomeScreen extends LinearLayout {
                 UiKit.MUTED,
                 UiKit.SURFACE_SOFT
         ));
+        about.addView(shellUpdateRow());
         content.addView(about);
 
         TextView foot = UiKit.label(
@@ -1572,6 +1585,49 @@ public final class HomeScreen extends LinearLayout {
             row.addView(actionView);
         }
         return row;
+    }
+
+    /** 「版本更新」：右侧显示当前版本，可更新时显示最新版本。 */
+    private View shellUpdateRow() {
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(13), dp(11), dp(13), dp(11));
+        row.setBackground(UiKit.ripple(activity, Color.TRANSPARENT, 0f));
+        row.setClickable(true);
+        row.setOnClickListener(view -> listener.onShellUpdate());
+
+        FrameLayout icon = new FrameLayout(activity);
+        icon.setBackground(UiKit.rounded(activity, UiKit.ACCENT_SOFT, 9f));
+        IconView view = new IconView(activity).type(IconView.Type.DOWNLOAD);
+        view.setColor(UiKit.ACCENT);
+        icon.addView(view, new FrameLayout.LayoutParams(dp(16), dp(16), Gravity.CENTER));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(30), dp(30)));
+
+        LinearLayout copy = new LinearLayout(activity);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        copyParams.leftMargin = dp(10);
+        row.addView(copy, copyParams);
+        copy.addView(UiKit.text(activity, "版本更新", 11.5f, UiKit.INK, true));
+        copy.addView(UiKit.text(activity, "检查 Docklet 是否有新版本", 8.5f, UiKit.FAINT, false));
+
+        shellUpdateValue = UiKit.text(activity, "", 9.5f, UiKit.MUTED, false);
+        row.addView(shellUpdateValue);
+        refreshShellUpdateLabel();
+        return row;
+    }
+
+    /** 版本信息变化后重新渲染右侧文案。 */
+    public void refreshShellUpdateLabel() {
+        if (shellUpdateValue == null) return;
+        String label = listener == null ? "" : listener.shellUpdateLabel();
+        shellUpdateValue.setText(label == null || label.isEmpty() ? "›" : label + "  ›");
+        shellUpdateValue.setTextColor(
+                label != null && label.contains("可更新") ? UiKit.ACCENT_DEEP : UiKit.MUTED
+        );
     }
 
     private View settingRow(
