@@ -729,7 +729,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     @Override
                     public void onUrl(String url, String sha256) {
                         leaveApp();
-                        confirmUrlInstall(url, sha256);
+                        installFromUrl(url, sha256, "模块包", null);
                     }
 
                     @Override
@@ -2629,84 +2629,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         installFromUrl(app.url(), app.sha256(), app.name(), onSuccess);
     }
 
-    private void confirmUrlInstall(String url, String sha256) {
-        String host;
-        try {
-            Uri parsed = Uri.parse(url);
-            host = parsed.getHost();
-        } catch (Exception error) {
-            host = null;
-        }
-        if (host == null || host.isEmpty()) host = "未知来源";
-
-        SheetDialog sheet = new SheetDialog(this);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.addView(UiKit.text(this, "确认模块来源", 21f, UiKit.INK, true));
-
-        TextView source = UiKit.text(
-                this,
-                "来源：" + host,
-                12f,
-                UiKit.ACCENT_DEEP,
-                true
-        );
-        LinearLayout.LayoutParams sourceParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        sourceParams.topMargin = dp(10);
-        content.addView(source, sourceParams);
-
-        TextView warning = UiKit.text(
-                this,
-                "请自行确认 URL 来源可靠。不明来源的 .pkg 可能包含异常模块，导致程序异常、数据风险或安全问题。",
-                11f,
-                UiKit.DANGER,
-                false
-        );
-        warning.setLineSpacing(dp(1), 1.2f);
-        warning.setPadding(dp(12), dp(10), dp(12), dp(10));
-        warning.setBackground(UiKit.rounded(this, UiKit.DANGER_SOFT, 13f));
-        LinearLayout.LayoutParams warningParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        warningParams.topMargin = dp(14);
-        content.addView(warning, warningParams);
-
-        TextView integrity = UiKit.text(
-                this,
-                sha256 == null || sha256.isEmpty()
-                        ? "未提供 SHA-256，安装前只校验包结构。"
-                        : "已提供 SHA-256，下载后会校验完整性。",
-                10f,
-                UiKit.MUTED,
-                false
-        );
-        LinearLayout.LayoutParams integrityParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        integrityParams.topMargin = dp(10);
-        content.addView(integrity, integrityParams);
-
-        TextView install = UiKit.primaryButton(this, "继续安装");
-        install.setOnClickListener(view -> {
-            sheet.dismiss();
-            installFromUrl(url, sha256);
-        });
-        LinearLayout.LayoutParams installParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        installParams.topMargin = dp(16);
-        content.addView(install, installParams);
-        TextView cancel = UiKit.textButton(this, "取消", UiKit.MUTED);
-        cancel.setOnClickListener(view -> sheet.dismiss());
-        content.addView(cancel, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        sheet.setBody(content);
-        sheet.show();
-    }
-
     private void installFromUrl(String url, String sha256) {
         installFromUrl(url, sha256, null, null);
     }
@@ -2773,9 +2695,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                         );
                         if (onSuccess != null) {
                             onSuccess.accept(module);
-                        } else {
-                            showHome();
-                            showSnack("已安装 " + module.name() + " v" + module.version());
+                        } else if (inventory != null) {
+                            inventory.refresh(true, modules -> refreshScreens(modules));
                         }
                     });
                     return;
@@ -2827,13 +2748,22 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             stopActiveModule(() -> installFromUri(uri, expectedSha256));
             return;
         }
-        Dialog progress = showProgress("正在导入模块包", "校验 module.json、入口与版本");
+        InstallDialog dialog = InstallDialog.show(
+                this,
+                IconView.Type.DOWNLOAD,
+                "正在导入",
+                "本地模块包"
+        );
         io.execute(() -> {
             File temp = new File(getCacheDir(), "import-" + System.currentTimeMillis() + ".pkg");
-            try (InputStream in = getContentResolver().openInputStream(uri);
-                 OutputStream out = new FileOutputStream(temp)) {
-                if (in == null) throw new IOException("无法读取所选文件");
-                copyLimited(in, out, ModuleManager.MAX_PACKAGE_BYTES);
+            try {
+                main.post(() -> dialog.stage("读取文件…", 20));
+                try (InputStream in = getContentResolver().openInputStream(uri);
+                     OutputStream out = new FileOutputStream(temp)) {
+                    if (in == null) throw new IOException("无法读取所选文件");
+                    copyLimited(in, out, ModuleManager.MAX_PACKAGE_BYTES);
+                }
+                main.post(() -> dialog.stage("校验并安装…", 80));
                 if (expectedSha256 != null && !expectedSha256.isEmpty()) {
                     String actual = sha256(temp);
                     if (!actual.equalsIgnoreCase(expectedSha256.trim())) {
@@ -2845,20 +2775,30 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 }
                 InstalledModule module = manager.install(temp);
                 main.post(() -> {
-                    dismissQuietly(progress);
-                    showHome();
-                    showSnack("已安装 " + module.name() + " v" + module.version());
+                    dialog.success(
+                            IconView.Type.CHECK,
+                            "安装完成",
+                            module.name(),
+                            "✓ 已安装 " + module.name() + " · v" + module.version()
+                    );
+                    if (inventory != null) {
+                        inventory.refresh(true, modules -> refreshScreens(modules));
+                    }
                 });
             } catch (ModuleException error) {
-                main.post(() -> {
-                    dismissQuietly(progress);
-                    showErrorSheet("安装失败", error.getCode(), friendly(error.getCode(), error.getMessage()));
-                });
+                main.post(() -> dialog.failure(
+                        IconView.Type.INFO,
+                        "安装失败",
+                        "本地模块包",
+                        friendly(error.getCode(), error.getMessage())
+                ));
             } catch (Exception error) {
-                main.post(() -> {
-                    dismissQuietly(progress);
-                    showErrorSheet("安装失败", "PACKAGE_CORRUPT", safeMessage(error));
-                });
+                main.post(() -> dialog.failure(
+                        IconView.Type.INFO,
+                        "安装失败",
+                        "本地模块包",
+                        "无法读取所选文件"
+                ));
             } finally {
                 //noinspection ResultOfMethodCallIgnored
                 temp.delete();

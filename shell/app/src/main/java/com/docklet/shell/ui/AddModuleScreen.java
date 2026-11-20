@@ -406,6 +406,10 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         chip.setContentDescription(active ? "只看未安装（已开启）" : "只看未安装");
     }
 
+    private static boolean looksLikeSha256(String value) {
+        return value != null && value.matches("^[0-9a-fA-F]{64}$");
+    }
+
     private View headerChip(IconView.Type type, String description) {
         FrameLayout chip = new FrameLayout(activity);
         chip.setBackground(UiKit.ripple(activity, UiKit.SURFACE_SOFT, 10f));
@@ -2204,6 +2208,17 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(78)
         ));
 
+        EditText sha = new EditText(activity);
+        sha.setSingleLine(true);
+        sha.setTextSize(12.5f);
+        sha.setTextColor(UiKit.INK);
+        sha.setHint("64 位十六进制，可留空");
+        sha.setHintTextColor(UiKit.FAINT);
+        sha.setInputType(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        sha.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 14f));
+        sha.setPadding(dp(14), 0, dp(14), 0);
+
         TextView error = UiKit.text(activity, "", 11.5f, UiKit.DANGER, false);
         LinearLayout.LayoutParams errorParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -2220,9 +2235,15 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                 error.setVisibility(View.VISIBLE);
                 return;
             }
+            String shaValue = sha.getText().toString().trim();
+            if (!shaValue.isEmpty() && !looksLikeSha256(shaValue)) {
+                error.setText("sha256 应为 64 位十六进制");
+                error.setVisibility(View.VISIBLE);
+                return;
+            }
             hideKeyboard(url);
             onBack.run();
-            listener.onUrl(link, "");
+            listener.onUrl(link, shaValue);
         });
         LinearLayout.LayoutParams installParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(46)
@@ -2240,14 +2261,41 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         body.addView(or, orParams);
 
         body.addView(menuRow("选择本地 .pkg", "从文件管理器选择安装包", false, true, () -> {
+            String shaValue = sha.getText().toString().trim();
+            if (!shaValue.isEmpty() && !looksLikeSha256(shaValue)) {
+                error.setText("sha256 应为 64 位十六进制");
+                error.setVisibility(View.VISIBLE);
+                return;
+            }
             hideKeyboard(url);
             onBack.run();
-            listener.onPickFile("");
+            listener.onPickFile(shaValue);
         }));
+
+        body.addView(UiKit.text(activity, "校验 sha256（可选）", 12f, UiKit.INK, true));
+        TextView shaHint = UiKit.text(
+                activity,
+                "填写后，链接下载和本地文件都会对照这个指纹校验",
+                11f,
+                UiKit.MUTED,
+                false
+        );
+        LinearLayout.LayoutParams shaHintParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        shaHintParams.topMargin = dp(4);
+        shaHintParams.bottomMargin = dp(8);
+        body.addView(shaHint, shaHintParams);
+
+        LinearLayout.LayoutParams shaParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(46)
+        );
+        shaParams.bottomMargin = dp(8);
+        body.addView(sha, shaParams);
 
         TextView note = UiKit.text(
                 activity,
-                "请自行确认安装包来源可靠。不明来源的模块包可能导致程序异常、"
+                "请自行确认安装包来源可靠，不明来源的模块安装包可能导致程序异常、"
                         + "数据风险或安全问题。",
                 10.5f,
                 UiKit.DANGER,
