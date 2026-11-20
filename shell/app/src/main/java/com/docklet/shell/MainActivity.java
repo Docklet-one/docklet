@@ -2080,6 +2080,9 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         TextView uninstall = UiKit.textButton(this, "卸载模块", UiKit.DANGER);
         uninstall.setOnClickListener(view -> {
             sheet.dismiss();
+            // 从首页进来：清掉可能的“从安装页卸载”标记，
+            // 否则会走错刷新分支，在线列表残留“已安装”。
+            uninstallFromAdd = false;
             confirmUninstall(module);
         });
         LinearLayout.LayoutParams uninstallParams = new LinearLayout.LayoutParams(
@@ -3233,6 +3236,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private void refreshAfterUninstall(List<InstalledModule> remaining) {
         boolean fromAdd = uninstallFromAdd;
         uninstallFromAdd = false;
+        // 所有入口共用：在线列表、已安装页、详情页都持有“已安装”快照。
+        refreshScreens(remaining);
+        // inventory 是新建在线页的数据源，卸载后必须重新读盘。
+        if (inventory != null) {
+            inventory.refresh(true, modules -> refreshScreens(modules));
+        }
         if (fromAdd) {
             detailReturnToAdd = false;
             if (addScreen != null) {
@@ -3247,14 +3256,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             home.refreshModules(remaining);
         } else {
             showHome();
-        }
-        // 在线列表和详情页也持有一份“已安装”状态，卸载后必须一起刷新，
-        // 否则会残留“已安装”、点打开打不开、再点卸载又报未安装。
-        refreshScreens(remaining);
-        // inventory 是在线列表新建时的数据源，也要重新读一次，
-        // 否则下次打开在线模块仍是旧的“已安装”。
-        if (inventory != null) {
-            inventory.refresh(true, modules -> refreshScreens(modules));
         }
         if (demoDetailScreen != null && demoDetailId != null) {
             InstalledModule now = null;
