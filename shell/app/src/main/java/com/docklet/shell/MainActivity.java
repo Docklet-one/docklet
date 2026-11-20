@@ -119,8 +119,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private AddModuleScreen onlineScreen;
     /** 本地安装页当前是否作为覆盖层打开。 */
     private boolean localInstallOpen;
-    /** 缓存的 shell.json 信息，设置页「版本更新」用。 */
-    private com.docklet.shell.demo.ShellUpdate.Info shellInfo;
+    /** 版本更新的落地页。 */
+    private static final String SITE_URL = "https://docklet.cn";
     private AddModuleScreen.Listener appListener;
     private AddModuleScreen pendingDemoAdd;
     /** The page that opened the detail, so install/uninstall refresh the right one. */
@@ -653,12 +653,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             showCenterBanner("已是最新版本");
             return;
         }
-        if (info.url == null || info.url.isEmpty()) {
-            showCenterBanner("还没有下载地址");
-            return;
-        }
         try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(info.url));
+            Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(SITE_URL));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
         } catch (Exception error) {
@@ -668,26 +664,15 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
     @Override
     public void refreshShellUpdate() {
-        if (!com.docklet.shell.demo.ShellUpdate.cacheStale(this)) {
-            shellInfo = com.docklet.shell.demo.ShellUpdate.cached(this);
-            if (home != null) home.refreshShellUpdateLabel();
-            return;
-        }
-        io.execute(() -> {
-            com.docklet.shell.demo.ShellUpdate.Info info =
-                    com.docklet.shell.demo.ShellUpdate.refresh(this);
-            main.post(() -> {
-                if (info != null) shellInfo = info;
-                if (home != null) home.refreshShellUpdateLabel();
-            });
-        });
+        // 不额外请求：只按当前目录缓存重算一次文案。
+        if (home != null) home.refreshShellUpdateLabel();
     }
 
     private com.docklet.shell.demo.ShellUpdate.Info shellUpdateInfo() {
-        if (shellInfo == null) {
-            shellInfo = com.docklet.shell.demo.ShellUpdate.cached(this);
-        }
-        return shellInfo;
+        // 和模块目录共用一份缓存：目录刷新时这段信息自然跟着变。
+        return com.docklet.shell.demo.ShellUpdate.parse(
+                com.docklet.shell.demo.CatalogSource.cachedJson(this)
+        );
     }
 
     /** 屏幕中间的小横幅，用来提示「已是最新版本」这类短信息。 */
@@ -927,6 +912,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             }
             com.docklet.shell.demo.CatalogSource.save(this, json);
             runOnUiThread(() -> {
+                if (home != null) home.refreshShellUpdateLabel();
                 demoApps = apps;
                 if (addScreen != null) addScreen.setCatalog(apps);
                 if (!silent) {
