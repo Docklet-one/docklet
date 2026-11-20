@@ -2771,7 +2771,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private String installFailureText(ModuleException error) {
         String code = error == null ? "" : error.getCode();
         if (ModuleException.REMOTE_NOT_FOUND.equals(code)) {
-            return "安装包还在发布，请稍后再试";
+            return "安装包分发中，请稍后再试";
         }
         if (ModuleException.REMOTE_HASH_MISMATCH.equals(code)) {
             return "安装包校验不通过，请重新下载";
@@ -2791,9 +2791,9 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             return "安装包格式不对，请确认来源";
         }
         if (ModuleException.UNSUPPORTED_SHELL.equals(code)) {
-            return "这个模块需要更新的 Docklet";
+            return "这个模块需要更新Docklet版本";
         }
-        return "这次没有装成功，请稍后再试；多次失败可联系 docklet@163.com";
+        return "安装失败，请稍后再试";
     }
 
     /** 本机是否有可用网络（连上但没有外网也算没有）。 */
