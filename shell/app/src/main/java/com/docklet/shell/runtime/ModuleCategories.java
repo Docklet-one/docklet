@@ -13,7 +13,8 @@ import java.util.Map;
 public final class ModuleCategories {
 
     public static final String DEFAULT_ID = "default";
-    public static final String DEFAULT_NAME = "默认";
+    /** 预置项：收藏夹入口（最近 + 收藏），不是可归属的分类。 */
+    public static final String DEFAULT_NAME = "收藏";
     public static final String UNCLASSIFIED_ID = "__unclassified__";
     public static final String UNCLASSIFIED_NAME = "临时";
     public static final String DEFAULT_ICON = "home";

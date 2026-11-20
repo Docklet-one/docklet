@@ -679,6 +679,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     : new ArrayList<>();
             addScreen.refreshInstalled(current);
             home.showAppScreen(addScreen);
+            addScreen.selectFirstCategory();
             return;
         }
         if (demoApps == null) demoApps = DemoCatalog.load(this);

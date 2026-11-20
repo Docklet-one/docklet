@@ -163,6 +163,19 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ));
         showTab(0);
+        selectFirstCategory();
+    }
+
+    /** 进入模块页时选中左栏第一个可见分类（临时 → 收藏）。 */
+    public void selectFirstCategory() {
+        String first = railOrder.isEmpty()
+                ? ModuleCategories.DEFAULT_ID
+                : railOrder.get(0);
+        category = first;
+        query = "";
+        if (searchInput != null) searchInput.setText("");
+        rebuildBody();
+        refreshRailSelection();
     }
 
     @Override
@@ -903,7 +916,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         }
         View home = categoryIconButton(
                 IconView.Type.SIGNPOST,
-                "首页",
+                ModuleCategories.DEFAULT_NAME,
                 ModuleCategories.DEFAULT_ID.equals(category),
                 0,
                 DEFAULT_SOFT,
