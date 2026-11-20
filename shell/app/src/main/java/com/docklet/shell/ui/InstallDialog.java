@@ -126,13 +126,18 @@ public final class InstallDialog {
         dialog.setContentView(content);
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setGravity(Gravity.CENTER);
+        }
+        autoClose = this::dismiss;
+        dialog.show();
+        // 尺寸在 show 之后再设：提前设 WRAP_CONTENT 时，
+        // 部分 ROM 会按上一轮测量结果截断底部，按钮看起来被压住。
+        if (dialog.getWindow() != null) {
             dialog.getWindow().setLayout(
                     dp(activity, DIALOG_WIDTH_DP),
                     ViewGroup.LayoutParams.WRAP_CONTENT
             );
         }
-        autoClose = this::dismiss;
-        dialog.show();
     }
 
     public static InstallDialog show(

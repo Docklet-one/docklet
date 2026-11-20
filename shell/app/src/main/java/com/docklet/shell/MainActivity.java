@@ -2939,7 +2939,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(20), dp(20), dp(16));
+        content.setPadding(dp(20), dp(20), dp(20), dp(20));
         content.setBackground(UiKit.rounded(this, UiKit.SURFACE, 24f));
         content.setElevation(dp(8));
 
@@ -3003,9 +3003,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         dialog.setContentView(content);
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setLayout(dp(320), ViewGroup.LayoutParams.WRAP_CONTENT);
+            dialog.getWindow().setGravity(Gravity.CENTER);
         }
         dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setLayout(dp(320), ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
     }
 
     /** 一行：标签 + 模块图标 + 名称 + 靠右版本号。 */
