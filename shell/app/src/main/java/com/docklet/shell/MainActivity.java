@@ -730,7 +730,9 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
                     @Override
                     public void onUrl(String url, String sha256) {
+                        installSource = SOURCE_MANUAL;
                         installFromUrl(url, sha256, "模块包", null);
+                        installSource = SOURCE_CATALOG;
                     }
 
                     @Override
@@ -2568,6 +2570,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             stopActiveModule(() -> installFromUrl(url, sha256, label, onSuccess, allowDowngrade));
             return;
         }
+        final int source = installSource;
         String name = label == null || label.isEmpty() ? "模块" : label;
         if (!hasNetwork()) {
             InstallDialog offline = InstallDialog.show(
@@ -2668,12 +2671,11 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                             installFromUrl(url, sha256, label, onSuccess, true));
                     return;
                 } else {
-                    dialog.failure(
-                            IconView.Type.INFO,
-                            "安装失败",
-                            name,
-                            installFailureText(error)
-                    );
+                    int previous = installSource;
+                    installSource = source;
+                    String text = installFailureText(error);
+                    installSource = previous;
+                    dialog.failure(IconView.Type.INFO, "安装失败", name, text);
                 }
                 if (ModuleException.INSTALL_FAILED.equals(error.getCode())
                         || ModuleException.REMOTE_HASH_MISMATCH.equals(error.getCode())) {
@@ -2767,11 +2769,18 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         });
     }
 
+    /** 安装来源：目录（知道在装哪版）还是用户手填的链接。 */
+    private static final int SOURCE_CATALOG = 0;
+    private static final int SOURCE_MANUAL = 1;
+    private int installSource = SOURCE_CATALOG;
+
     /** 把安装失败翻译成用户能照做的一句话。 */
     private String installFailureText(ModuleException error) {
         String code = error == null ? "" : error.getCode();
         if (ModuleException.REMOTE_NOT_FOUND.equals(code)) {
-            return "安装包分发中，请稍后再试";
+            return installSource == SOURCE_MANUAL
+                    ? "链接里没有找到安装包，请检查地址"
+                    : "安装包分发中，请稍后再试";
         }
         if (ModuleException.REMOTE_HASH_MISMATCH.equals(code)) {
             return "安装包校验不通过，请重新下载";
