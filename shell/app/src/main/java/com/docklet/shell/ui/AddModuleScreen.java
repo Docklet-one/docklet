@@ -122,6 +122,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     private boolean categorySwipeConsumed;
     /** 在线模块页：只显示尚未安装的条目（离开页面即重置）。 */
     private boolean onlyUninstalled;
+    private View filterChip;
 
     private static final int SIGNAL_RED = 0xFFD94841;
     private static final int DEFAULT_SOFT = 0xFFFFE8E5;
@@ -243,13 +244,19 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         View refresh = headerChip(IconView.Type.REFRESH, "刷新");
         refresh.setOnClickListener(view -> listener.onRefreshCatalog());
         actions.addView(refresh, actionChipSize(0));
-        actions.addView(headerChip(IconView.Type.NETWORK, "切换仓库"), actionChipSize(12));
+        View repo = headerChip(IconView.Type.NETWORK, "切换仓库");
+        repo.setOnClickListener(view -> {
+            resetFilter();
+            listener.onRemote();
+        });
+        actions.addView(repo, actionChipSize(12));
         View filter = headerChip(IconView.Type.FILTER, "只看未安装");
         filter.setOnClickListener(view -> {
             onlyUninstalled = !onlyUninstalled;
             paintFilterChip(filter, onlyUninstalled);
             rebuildBody();
         });
+        filterChip = filter;
         paintFilterChip(filter, onlyUninstalled);
         actions.addView(filter, actionChipSize(12));
         hrow.addView(actions);
@@ -372,6 +379,14 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
     }
 
     /** Square icon button used by the toolbar above the search field. */
+    /** 搜索、刷新、换源都会把筛选关掉，并把按钮恢复成未激活。 */
+    private void resetFilter() {
+        if (!onlyUninstalled) return;
+        onlyUninstalled = false;
+        paintFilterChip(filterChip, false);
+        rebuildBody();
+    }
+
     private void paintFilterChip(View chip, boolean active) {
         if (chip == null) return;
         chip.setBackground(UiKit.ripple(
@@ -440,6 +455,10 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         input.setInputType(InputType.TYPE_CLASS_TEXT);
         input.setPadding(dp(40), 0, dp(13), 0);
         input.setBackgroundColor(Color.TRANSPARENT);
+        input.setOnFocusChangeListener((view, hasFocus) -> {
+            if (hasFocus) resetFilter();
+        });
+        input.setOnClickListener(view -> resetFilter());
         input.addTextChangedListener(new android.text.TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -1122,8 +1141,10 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
             return;
         }
         int count = 0;
+        boolean searching = !query.isEmpty();
         for (DemoApp app : demoApps == null ? new ArrayList<DemoApp>() : demoApps) {
-            if (onlyUninstalled && installed.containsKey(app.id())) continue;
+            // 搜索是独立入口：不看分类，也不看「只看未安装」。
+            if (!searching && onlyUninstalled && installed.containsKey(app.id())) continue;
             if (!matches(app.kind(), app.name(), app.id(), app.description())) continue;
             addSpacedRow(list, buildDemoRow(app));
             count += 1;
