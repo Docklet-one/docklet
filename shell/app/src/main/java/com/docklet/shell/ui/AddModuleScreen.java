@@ -1182,15 +1182,16 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         return button;
     }
 
-    /** 未安装模块：先画线条图标占位，远程图标下好后只替换这一个格子。 */
+    /** 未安装模块：读图标缓存，有就显示，没有就先用线条图标。 */
     private void fillRemoteIcon(
             FrameLayout holder,
             DemoApp app,
             int accent,
             int iconBg
     ) {
-        android.graphics.Bitmap cached =
-                com.docklet.shell.runtime.RemoteIcons.cached(activity, app.id(), app.version());
+        android.graphics.Bitmap cached = com.docklet.shell.runtime.RemoteIcons.cached(
+                activity, app.id(), app.version()
+        );
         if (cached != null) {
             showRemoteIcon(holder, cached);
             return;
@@ -1199,15 +1200,6 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         IconView glyph = new IconView(activity).type(ModuleGlyph.of(app.glyph()));
         glyph.setColor(accent);
         holder.addView(glyph, new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
-
-        String url = app.iconUrl();
-        if (url == null || url.isEmpty()) return;
-        com.docklet.shell.runtime.RemoteIcons.load(
-                activity, app.id(), app.version(), url, bitmap -> {
-                    if (bitmap == null) return;
-                    activity.runOnUiThread(() -> showRemoteIcon(holder, bitmap));
-                }
-        );
     }
 
     private void showRemoteIcon(FrameLayout holder, android.graphics.Bitmap bitmap) {

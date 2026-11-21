@@ -144,8 +144,20 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         hero.setPadding(0, dp(18), 0, dp(14));
 
         FrameLayout mark = new FrameLayout(activity);
+        android.graphics.Bitmap remote = installed == null
+                ? com.docklet.shell.runtime.RemoteIcons.cached(activity, app.id(), app.version())
+                : null;
         if (installed != null) {
             UiKit.fillModuleIcon(mark, installed, 64, 14f);
+        } else if (remote != null) {
+            android.widget.ImageView image = new android.widget.ImageView(activity);
+            image.setImageBitmap(remote);
+            image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            image.setBackground(UiKit.rounded(activity, 0xFF000000, 14f));
+            image.setClipToOutline(true);
+            mark.addView(image, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            ));
         } else {
             mark.setBackground(UiKit.rounded(
                     activity, UiKit.blend(accent, Color.WHITE, 0.14f), 18f

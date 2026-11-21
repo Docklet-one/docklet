@@ -1087,6 +1087,11 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 return;
             }
             com.docklet.shell.demo.CatalogSource.save(this, json);
+            // 目录更新后补齐缺失图标，并清掉已不在目录里的旧图。
+            io.execute(() -> {
+                com.docklet.shell.runtime.RemoteIcons.prefetch(this, apps);
+                com.docklet.shell.runtime.RemoteIcons.cleanup(this, apps);
+            });
             runOnUiThread(() -> {
                 if (home != null) home.refreshShellUpdateLabel();
                 demoApps = apps;
@@ -1116,6 +1121,10 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
     /** The standalone 在线应用 page: its own screen instance on the overlay layer. */
     private void openOnlinePage() {
+        if (demoApps != null && !demoApps.isEmpty()) {
+            final java.util.List<com.docklet.shell.demo.DemoApp> snapshot = demoApps;
+            io.execute(() -> com.docklet.shell.runtime.RemoteIcons.prefetch(this, snapshot));
+        }
         if (demoApps == null) demoApps = DemoCatalog.load(this);
         if (appListener == null) showAddScreen();
         if (appListener == null) return;
