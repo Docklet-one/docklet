@@ -105,6 +105,22 @@ public final class UiKit {
         return drawable;
     }
 
+    /** 品牌标记：和网页里 “D + 渐变底 + 圆角” 完全一样，纯代码画，不用图片。 */
+    public static TextView brandMark(android.content.Context context, int sizeDp, float textSp) {
+        TextView mark = text(context, "D", textSp, 0xFFFFF8ED, true);
+        mark.setGravity(android.view.Gravity.CENTER);
+        mark.setIncludeFontPadding(false);
+        mark.setBackground(gradient(
+                context,
+                new int[]{0xFF3B2C1F, 0xFF241B13},
+                sizeDp * 0.22f
+        ));
+        mark.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                dp(context, sizeDp), dp(context, sizeDp)
+        ));
+        return mark;
+    }
+
     public static GradientDrawable gradient(Context context, int[] colors, float radiusDp) {
         GradientDrawable drawable = new GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,

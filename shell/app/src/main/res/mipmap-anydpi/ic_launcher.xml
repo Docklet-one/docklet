@@ -1,14 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#D9792B"
-        android:pathData="M0,0 h108 v108 h-108 z" />
-    <path
-        android:fillColor="#FFFDF9"
-        android:fillType="evenOdd"
-        android:pathData="M45,33 h15 c10,0 17,7 17,17 v8 c0,10 -7,17 -17,17 h-15 z M53,42 v24 h7 c5,0 8,-3 8,-8 v-8 c0,-5 -3,-8 -8,-8 z" />
+    <path android:pathData="M0,0 h108 v108 h-108 z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="0"
+                android:endX="65" android:endY="108"
+                android:startColor="#FF3B2C1F"
+                android:endColor="#FF241B13" />
+        </aapt:attr>
+    </path>
+    <group android:translateX="5.506" android:translateY="6.866"
+           android:scaleX="0.1813" android:scaleY="0.1813">
+        <path android:fillColor="#FFFFF8ED" android:fillType="evenOdd"
+              android:pathData="M150,120 h95 a140,140 0 0 1 0,280 h-95 z M212,182 h37 a78,78 0 0 1 0,156 h-37 z" />
+    </group>
 </vector>

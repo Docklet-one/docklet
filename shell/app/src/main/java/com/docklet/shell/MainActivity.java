@@ -209,11 +209,14 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 窗口主题只负责冷启动那一帧；内容接手后换回普通主题。
+        setTheme(R.style.AppTheme);
         super.onCreate(savedInstanceState);
         main = new Handler(Looper.getMainLooper());
         io = Executors.newSingleThreadExecutor();
         setupWindow();
         setupRoot();
+        buildSplash();
 
         try {
             File files = getFilesDir();
@@ -305,6 +308,104 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             decor.setSystemUiVisibility(flags);
         }
+    }
+
+    /** 冷启动兜底页：只在首页出第一帧之前盖住，慢机器上看得到“正在启动”。 */
+    private FrameLayout splashLayer;
+    private android.widget.ProgressBar splashProgress;
+    private TextView splashStatus;
+    private boolean splashHidden;
+    private long splashShownAt;
+    /** 快机器上小于这个时间就无声撤掉，避免闪一下。 */
+    private static final long SPLASH_SILENT_REMOVE_MS = 120L;
+
+    private void buildSplash() {
+        if (root == null) return;
+        splashShownAt = android.os.SystemClock.uptimeMillis();
+        splashLayer = new FrameLayout(this);
+        splashLayer.setBackgroundColor(UiKit.BG);
+        splashLayer.setClickable(true);
+
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        column.addView(UiKit.brandMark(this, 104, 52f), new LinearLayout.LayoutParams(
+                dp(104), dp(104)));
+
+        TextView name = UiKit.text(this, "小坞", 18f, UiKit.INK, true);
+        name.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        nameParams.topMargin = dp(14);
+        column.addView(name, nameParams);
+
+        TextView brand = UiKit.label(this, "DOCKLET·CN", 9f, UiKit.FAINT);
+        LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        brandParams.topMargin = dp(6);
+        column.addView(brand, brandParams);
+
+        splashProgress = new android.widget.ProgressBar(
+                this, null, android.R.attr.progressBarStyleSmall
+        );
+        splashProgress.getIndeterminateDrawable().setColorFilter(
+                UiKit.ACCENT, android.graphics.PorterDuff.Mode.SRC_IN
+        );
+        splashProgress.setVisibility(View.INVISIBLE);
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(dp(20), dp(20));
+        progressParams.topMargin = dp(22);
+        column.addView(splashProgress, progressParams);
+
+        splashStatus = UiKit.text(this, "", 11f, UiKit.MUTED, false);
+        splashStatus.setGravity(Gravity.CENTER);
+        splashStatus.setVisibility(View.INVISIBLE);
+        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        statusParams.topMargin = dp(10);
+        column.addView(splashStatus, statusParams);
+
+        splashLayer.addView(column, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+        ));
+        root.addView(splashLayer, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        // 快机器上几乎看不到；慢机器 600ms 后出现转圈，3s 后补一句说明。
+        main.postDelayed(() -> {
+            if (splashHidden || splashProgress == null) return;
+            splashProgress.setVisibility(View.VISIBLE);
+            splashStatus.setText("正在启动…");
+            splashStatus.setVisibility(View.VISIBLE);
+        }, 600L);
+        main.postDelayed(() -> {
+            if (splashHidden || splashStatus == null) return;
+            splashStatus.setText(indexPrimed ? "首次启动会慢一点" : "正在建立模块索引…");
+        }, 3000L);
+    }
+
+    /** 首页出了第一帧就撤掉兜底页。 */
+    private void hideSplash() {
+        if (splashHidden || splashLayer == null) return;
+        splashHidden = true;
+        final FrameLayout layer = splashLayer;
+        splashLayer = null;
+        splashProgress = null;
+        splashStatus = null;
+        long elapsed = android.os.SystemClock.uptimeMillis() - splashShownAt;
+        if (elapsed < SPLASH_SILENT_REMOVE_MS) {
+            // 首帧很快就到：直接撤掉，不要留一帧“闪一下”。
+            if (root != null) root.removeView(layer);
+            return;
+        }
+        layer.animate().alpha(0f).setDuration(160).withEndAction(() -> {
+            if (root != null) root.removeView(layer);
+        }).start();
     }
 
     private void setupRoot() {
@@ -500,6 +601,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             // Keep the instance: it owns the selected page and the app page.
             home.updateData(renderedModules, glyphs, crashStates);
         }
+        // 首页已经有内容，兜底页可以撤了。
+        hideSplash();
         maybePreload();
     }
 
@@ -1142,6 +1245,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 app,
                 state,
                 installed == null ? null : installed.version(),
+                installed,
                 new DemoDetailScreen.Listener() {
                     @Override
                     public void onClose() {
@@ -2646,12 +2750,58 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         ShortcutInfo shortcut = new ShortcutInfo.Builder(this, shortcutId)
                 .setShortLabel(label)
                 .setLongLabel(module.name())
-                .setIcon(Icon.createWithResource(this, R.mipmap.ic_launcher))
+                .setIcon(Icon.createWithBitmap(moduleShortcutIcon(module)))
                 .setIntent(intent)
                 .build();
         boolean requested = shortcutManager.requestPinShortcut(shortcut, null);
         showSnack(requested ? "已请求添加到桌面" : "添加桌面快捷方式失败");
     }
+
+    /**
+     * 桌面快捷方式图标：满幅模块底色 + 白色 glyph，跟老项目一致。
+     * 不做圆角、不加角标——启动器会自己套遮罩和 Docklet 角标，再画就叠了。
+     */
+    private android.graphics.Bitmap moduleShortcutIcon(InstalledModule module) {
+        final int size = 192;
+        android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(
+                size, size, android.graphics.Bitmap.Config.ARGB_8888
+        );
+        android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+
+        int accent = UiKit.ACCENT;
+        try {
+            if (module.accent() != null && module.accent().startsWith("#")) {
+                accent = android.graphics.Color.parseColor(module.accent());
+            }
+        } catch (Exception ignored) {
+            accent = UiKit.ACCENT;
+        }
+        android.graphics.Bitmap own = com.docklet.shell.runtime.ModuleIcons.full(this, module);
+        if (own != null) {
+            android.graphics.Bitmap scaled = android.graphics.Bitmap.createScaledBitmap(
+                    own, size, size, true
+            );
+            canvas.drawBitmap(scaled, 0, 0, null);
+            return bitmap;
+        }
+        canvas.drawColor(accent);
+
+        IconView glyph = new IconView(this).type(iconTypeFor(module.glyph()));
+        glyph.setColor(0xFFFFFFFF);
+        int glyphSize = (int) (size * 0.52f);
+        glyph.measure(
+                android.view.View.MeasureSpec.makeMeasureSpec(glyphSize, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(glyphSize, android.view.View.MeasureSpec.EXACTLY)
+        );
+        glyph.layout(0, 0, glyphSize, glyphSize);
+        canvas.save();
+        canvas.translate((size - glyphSize) / 2f, (size - glyphSize) / 2f);
+        glyph.draw(canvas);
+        canvas.restore();
+        return bitmap;
+    }
+
+
 
     private void showErrorSheet(String title, String code, String message) {
         SheetDialog sheet = new SheetDialog(this);
@@ -3581,6 +3731,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     }
 
     private void showFatal(Exception error) {
+        hideSplash();
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER);

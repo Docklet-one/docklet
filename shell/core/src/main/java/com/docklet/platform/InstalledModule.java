@@ -18,6 +18,7 @@ public final class InstalledModule {
     private final String author;
     private final String authorContact;
     private final String glyph;
+    private final String icon;
     private final List<ModuleManifest.Permission> permissions;
     private final String kind;
     private final String accent;
@@ -41,6 +42,7 @@ public final class InstalledModule {
             String author,
             String authorContact,
             String glyph,
+            String icon,
             List<ModuleManifest.Permission> permissions,
             String kind,
             String accent,
@@ -63,6 +65,7 @@ public final class InstalledModule {
         this.author = author == null ? "" : author;
         this.authorContact = authorContact == null ? "" : authorContact;
         this.glyph = glyph == null || glyph.isEmpty() ? "spark" : glyph;
+        this.icon = icon == null ? "" : icon;
         this.permissions = Collections.unmodifiableList(
                 permissions == null ? new ArrayList<>() : new ArrayList<>(permissions)
         );
@@ -106,6 +109,10 @@ public final class InstalledModule {
 
     public String authorContact() {
         return authorContact;
+    }
+
+    public String icon() {
+        return icon;
     }
 
     public String glyph() {

@@ -14,6 +14,11 @@
         <item name="android:windowContentTransitions">false</item>
     </style>
 
+    <!-- 冷启动瞬间的系统窗口：品牌底色 + 标记，避免白屏。 -->
+    <style name="SplashTheme" parent="AppTheme">
+        <item name="android:windowBackground">@drawable/splash_window</item>
+    </style>
+
     <style name="DockletSheetAnimation">
         <item name="android:windowEnterAnimation">@anim/sheet_in</item>
         <item name="android:windowExitAnimation">@anim/sheet_out</item>

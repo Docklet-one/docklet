@@ -72,6 +72,7 @@ public final class ModuleIndex {
                         Json.string(node, "author", ""),
                         Json.string(node, "authorContact", ""),
                         Json.string(node, "glyph", "spark"),
+                        Json.string(node, "icon", ""),
                         Collections.<ModuleManifest.Permission>emptyList(),
                         Json.string(node, "kind", ""),
                         Json.string(node, "accent", ""),
@@ -108,6 +109,7 @@ public final class ModuleIndex {
                 node.put("author", module.author());
                 node.put("authorContact", module.authorContact());
                 node.put("glyph", module.glyph());
+                node.put("icon", module.icon());
                 node.put("kind", module.kind());
                 node.put("accent", module.accent());
                 node.put("chrome", module.chrome());

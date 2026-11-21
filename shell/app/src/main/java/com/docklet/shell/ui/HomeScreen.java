@@ -35,6 +35,8 @@ import android.widget.Toast;
 import com.docklet.platform.CrashGuard;
 import com.docklet.platform.InstalledModule;
 import com.docklet.shell.BuildConfig;
+import com.docklet.shell.runtime.ModuleIcons;
+import com.docklet.shell.R;
 import com.docklet.shell.runtime.DockletMessageService;
 import com.docklet.shell.runtime.FavoriteModules;
 import com.docklet.shell.runtime.MessageSubscription;
@@ -218,16 +220,9 @@ public final class HomeScreen extends LinearLayout {
     }
 
 
-    /** The dark rounded "D" mark used as the app logo. */
+    /** 品牌标记：D + 渐变底，纯代码画。 */
     private View logoMark(int sizeDp) {
-        FrameLayout mark = new FrameLayout(activity);
-        mark.setBackground(UiKit.gradient(activity, new int[]{0xFF3B2C1F, 0xFF241B13}, 6f));
-        TextView letter = UiKit.text(activity, "D", 11f, Color.rgb(255, 248, 237), true);
-        letter.setGravity(Gravity.CENTER);
-        mark.addView(letter, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-        return mark;
+        return UiKit.brandMark(activity, sizeDp, sizeDp * 0.5f);
     }
 
     private void addTab(LinearLayout bar, String label, IconView.Type type, int index) {
@@ -428,10 +423,20 @@ public final class HomeScreen extends LinearLayout {
         card.addView(main, mainParams);
 
         FrameLayout iconWrap = new FrameLayout(activity);
-        iconWrap.setBackground(UiKit.rounded(activity, Color.argb(35, 129, 195, 178), 15f));
-        IconView icon = new IconView(activity).type(iconFor(module));
-        icon.setColor(Color.rgb(184, 224, 213));
-        iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER));
+        android.graphics.Bitmap spotIcon = ModuleIcons.thumbnail(activity, module);
+        if (spotIcon != null) {
+            android.widget.ImageView image = new android.widget.ImageView(activity);
+            image.setImageBitmap(spotIcon);
+            image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            iconWrap.addView(image, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+        } else {
+            iconWrap.setBackground(UiKit.rounded(activity, Color.argb(35, 129, 195, 178), 15f));
+            IconView icon = new IconView(activity).type(iconFor(module));
+            icon.setColor(Color.rgb(184, 224, 213));
+            iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER));
+        }
         main.addView(iconWrap, new LinearLayout.LayoutParams(dp(46), dp(46)));
 
         LinearLayout copy = new LinearLayout(activity);
@@ -586,14 +591,24 @@ public final class HomeScreen extends LinearLayout {
         }
 
         FrameLayout iconWrap = new FrameLayout(activity);
-        iconWrap.setBackground(UiKit.rounded(
-                activity,
-                UiKit.blend(accent(module), Color.WHITE, 0.14f),
-                13f
-        ));
-        IconView icon = new IconView(activity).type(iconFor(module));
-        icon.setColor(accent(module));
-        iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER));
+        android.graphics.Bitmap moduleIcon = ModuleIcons.thumbnail(activity, module);
+        if (moduleIcon != null) {
+            android.widget.ImageView image = new android.widget.ImageView(activity);
+            image.setImageBitmap(moduleIcon);
+            image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            iconWrap.addView(image, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+        } else {
+            iconWrap.setBackground(UiKit.rounded(
+                    activity,
+                    UiKit.blend(accent(module), Color.WHITE, 0.14f),
+                    13f
+            ));
+            IconView icon = new IconView(activity).type(iconFor(module));
+            icon.setColor(accent(module));
+            iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER));
+        }
         tile.addView(iconWrap, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         TextView name = UiKit.text(activity, module.name(), 10.5f, UiKit.INK, true);
@@ -693,14 +708,8 @@ public final class HomeScreen extends LinearLayout {
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(0, dp(14), 0, dp(8));
 
-        FrameLayout mark = new FrameLayout(activity);
-        mark.setBackground(UiKit.gradient(activity, new int[]{0xFF3B2C1F, 0xFF241B13}, 12f));
-        TextView markText = UiKit.text(activity, "D", 17f, Color.rgb(255, 248, 237), true);
-        markText.setGravity(Gravity.CENTER);
-        mark.addView(markText, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-        bar.addView(mark, new LinearLayout.LayoutParams(dp(37), dp(37)));
+        bar.addView(UiKit.brandMark(activity, 36, 18f), new LinearLayout.LayoutParams(
+                dp(36), dp(36)));
 
         LinearLayout brand = new LinearLayout(activity);
         brand.setOrientation(VERTICAL);
@@ -973,10 +982,20 @@ public final class HomeScreen extends LinearLayout {
 
         FrameLayout iconWrap = new FrameLayout(activity);
         int accent = accent(module);
-        iconWrap.setBackground(UiKit.rounded(activity, UiKit.blend(accent, Color.WHITE, 0.14f), 10f));
-        IconView icon = new IconView(activity).type(iconFor(module));
-        icon.setColor(accent);
-        iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER));
+        android.graphics.Bitmap rowIcon = ModuleIcons.thumbnail(activity, module);
+        if (rowIcon != null) {
+            android.widget.ImageView image = new android.widget.ImageView(activity);
+            image.setImageBitmap(rowIcon);
+            image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            iconWrap.addView(image, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+        } else {
+            iconWrap.setBackground(UiKit.rounded(activity, UiKit.blend(accent, Color.WHITE, 0.14f), 10f));
+            IconView icon = new IconView(activity).type(iconFor(module));
+            icon.setColor(accent);
+            iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER));
+        }
         row.addView(iconWrap, new LinearLayout.LayoutParams(dp(32), dp(32)));
 
         LinearLayout copy = new LinearLayout(activity);

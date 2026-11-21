@@ -37,6 +37,7 @@ import android.widget.Toast;
 import com.docklet.platform.InstalledModule;
 import com.docklet.platform.ModuleException;
 import com.docklet.platform.SemVer;
+import com.docklet.shell.R;
 import com.docklet.shell.demo.DemoApp;
 import com.docklet.shell.runtime.ModuleCategories;
 import com.docklet.shell.runtime.FavoriteModules;
@@ -307,14 +308,8 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         LinearLayout brand = new LinearLayout(activity);
         brand.setOrientation(LinearLayout.HORIZONTAL);
         brand.setGravity(Gravity.CENTER_VERTICAL);
-        FrameLayout mark = new FrameLayout(activity);
-        mark.setBackground(UiKit.gradient(activity, new int[]{0xFF3B2C1F, 0xFF241B13}, 12f));
-        TextView markText = UiKit.text(activity, "D", 17f, 0xFFFFF8ED, true);
-        markText.setGravity(Gravity.CENTER);
-        mark.addView(markText, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-        brand.addView(mark, new LinearLayout.LayoutParams(dp(37), dp(37)));
+        brand.addView(UiKit.brandMark(activity, 36, 18f), new LinearLayout.LayoutParams(
+                dp(36), dp(36)));
 
         LinearLayout brandText = new LinearLayout(activity);
         brandText.setOrientation(LinearLayout.VERTICAL);

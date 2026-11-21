@@ -235,6 +235,7 @@ public class ModuleManagerTest {
         File pkg = new File(root, id + "-" + version + ".pkg");
         Map<String, String> files = new LinkedHashMap<>();
         files.put(ModuleManifest.FILE_NAME, manifest(id, version, entry, minShell));
+        files.put("icon.png", "fake-png");
         if (file != null) files.put(file, content);
         zip(pkg, files);
         return pkg;
@@ -250,6 +251,7 @@ public class ModuleManagerTest {
                 + "\"name\":\"Demo\","
                 + "\"version\":\"" + version + "\","
                 + "\"entry\":\"" + entry + "\","
+                + "\"icon\":\"icon.png\","
                 + "\"minShell\":\"" + minShell + "\","
                 + "\"capabilities\":[\"storage\"],"
                 + "\"data\":\"" + id + "\""

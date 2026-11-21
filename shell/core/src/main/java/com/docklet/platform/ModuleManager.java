@@ -176,14 +176,33 @@ public final class ModuleManager {
                         "入口文件不存在: " + manifest.entry()
                 );
             }
-            if (manifest.icon() != null && !manifest.icon().isEmpty()) {
-                File icon = FileOps.child(staging, manifest.icon());
-                if (!icon.isFile()) {
-                    throw new ModuleException(
-                            ModuleException.MANIFEST_INVALID,
-                            "图标文件不存在: " + manifest.icon()
-                    );
-                }
+            // 图标由模块自己提供：必须有，png/webp，≤50KB。
+            String iconPath = manifest.icon();
+            if (iconPath == null || iconPath.trim().isEmpty()) {
+                throw new ModuleException(
+                        ModuleException.MANIFEST_INVALID,
+                        "缺少图标：module.json 需要 icon 字段（png/webp，≤50KB）"
+                );
+            }
+            String iconLower = iconPath.toLowerCase(Locale.ROOT);
+            if (!iconLower.endsWith(".png") && !iconLower.endsWith(".webp")) {
+                throw new ModuleException(
+                        ModuleException.MANIFEST_INVALID,
+                        "图标只支持 png/webp: " + iconPath
+                );
+            }
+            File icon = FileOps.child(staging, iconPath);
+            if (!icon.isFile()) {
+                throw new ModuleException(
+                        ModuleException.MANIFEST_INVALID,
+                        "图标文件不存在: " + iconPath
+                );
+            }
+            if (icon.length() > 50L * 1024L) {
+                throw new ModuleException(
+                        ModuleException.MANIFEST_INVALID,
+                        "图标超过 50KB: " + iconPath
+                );
             }
 
             File moduleDir = new File(modulesRoot, manifest.id());
@@ -383,6 +402,7 @@ public final class ModuleManager {
                 manifest.author(),
                 manifest.authorContact(),
                 manifest.glyph(),
+                manifest.icon(),
                 manifest.permissions(),
                 manifest.kind(),
                 manifest.accent(),

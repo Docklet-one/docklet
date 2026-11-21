@@ -12,6 +12,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.docklet.shell.demo.DemoApp;
+import com.docklet.shell.runtime.ModuleIcons;
 
 /** Full-screen repository detail page shown before installing a demo. */
 @SuppressLint("ViewConstructor")
@@ -31,6 +32,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
     private final DemoApp app;
     private String state;
     private String installedVersion;
+    private final com.docklet.platform.InstalledModule installed;
     private TextView sizeValue;
     private final Listener listener;
     private LinearLayout contentHost;
@@ -41,6 +43,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
             DemoApp app,
             String state,
             String installedVersion,
+            com.docklet.platform.InstalledModule installed,
             Listener listener
     ) {
         super(activity);
@@ -48,6 +51,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         this.app = app;
         this.state = state == null ? "" : state;
         this.installedVersion = installedVersion;
+        this.installed = installed;
         this.listener = listener;
         setOrientation(VERTICAL);
         setBackgroundColor(UiKit.BG);
@@ -140,12 +144,24 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         hero.setPadding(0, dp(18), 0, dp(14));
 
         FrameLayout mark = new FrameLayout(activity);
-        mark.setBackground(UiKit.rounded(
-                activity, UiKit.blend(accent, Color.WHITE, 0.14f), 18f
-        ));
-        IconView icon = new IconView(activity).type(iconFor(app.glyph()));
-        icon.setColor(accent);
-        mark.addView(icon, new FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER));
+        android.graphics.Bitmap detailIcon = installed == null
+                ? null
+                : ModuleIcons.full(activity, installed);
+        if (detailIcon != null) {
+            android.widget.ImageView image = new android.widget.ImageView(activity);
+            image.setImageBitmap(detailIcon);
+            image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            mark.addView(image, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+        } else {
+            mark.setBackground(UiKit.rounded(
+                    activity, UiKit.blend(accent, Color.WHITE, 0.14f), 18f
+            ));
+            IconView icon = new IconView(activity).type(iconFor(app.glyph()));
+            icon.setColor(accent);
+            mark.addView(icon, new FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER));
+        }
         hero.addView(mark, new LinearLayout.LayoutParams(dp(64), dp(64)));
 
         LinearLayout titleColumn = new LinearLayout(activity);
