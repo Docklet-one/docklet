@@ -3,18 +3,37 @@ apply plugin: "com.android.application"
 def distDir = rootProject.file("../dist")
 def buildStamp = new Date().format("yyyyMMdd-HHmmss")
 
+// 正式签名：keystore.properties 不进 git；缺这个文件时 release 构建不带签名
+def keystorePropertiesFile = rootProject.file("../keystore.properties")
+def keystoreProperties = new Properties()
+def hasKeystore = keystorePropertiesFile.isFile()
+if (hasKeystore) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
 android {
     namespace "com.docklet.shell"
+
+    signingConfigs {
+        release {
+            if (hasKeystore) {
+                storeFile new File(rootProject.projectDir.parentFile, keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     compileSdk 34
 
     defaultConfig {
         applicationId "com.docklet.shell"
         minSdk 26
         targetSdk 34
-        versionCode 1
+        versionCode 2
         // 模块用 minShell 声明它们要求的最低壳版本（当前模块要 1.0.0 / 1.1.0），
         // 壳版本必须不低于平台契约版本，否则在线安装会被拒绝。
-        versionName "1.1.0"
+        versionName "1.1.1"
         buildConfigField "String", "BUILD_STAMP", "\"${buildStamp}\""
         resourceConfigurations += ["zh"]
     }
@@ -29,6 +48,9 @@ android {
             versionNameSuffix "-debug"
         }
         release {
+            if (hasKeystore) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
