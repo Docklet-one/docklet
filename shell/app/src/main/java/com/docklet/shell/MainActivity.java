@@ -1495,7 +1495,8 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 module.capabilities(),
                 module.codeBytes(),
                 "",
-                permissions
+                permissions,
+                ""
         );
     }
 

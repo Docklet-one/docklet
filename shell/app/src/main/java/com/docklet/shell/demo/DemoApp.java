@@ -26,6 +26,7 @@ public final class DemoApp {
     private final long size;
     private final String updatedAt;
     private final List<Permission> permissions;
+    private final String iconUrl;
 
     public static final class Permission {
         private final String name;
@@ -64,7 +65,8 @@ public final class DemoApp {
             List<String> capabilities,
             long size,
             String updatedAt,
-            List<Permission> permissions
+            List<Permission> permissions,
+            String iconUrl
     ) {
         this.id = id;
         this.name = name;
@@ -89,6 +91,7 @@ public final class DemoApp {
         this.permissions = permissions == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(permissions));
+        this.iconUrl = iconUrl == null ? "" : iconUrl;
     }
 
     public String id() {
@@ -163,6 +166,11 @@ public final class DemoApp {
 
     public String updatedAt() {
         return updatedAt;
+    }
+
+    /** 目录里的图标地址（未安装时用），没有则为空。 */
+    public String iconUrl() {
+        return iconUrl;
     }
 
     public List<Permission> permissions() {

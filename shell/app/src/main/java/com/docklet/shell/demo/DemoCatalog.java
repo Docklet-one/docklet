@@ -105,7 +105,8 @@ public final class DemoCatalog {
                         capabilities,
                         size,
                         updatedAt,
-                        permissions
+                        permissions,
+                        Json.string(item, "icon", "")
                 ));
             }
         } catch (Json.JsonException error) {

@@ -1182,6 +1182,47 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         return button;
     }
 
+    /** 未安装模块：先画线条图标占位，远程图标下好后只替换这一个格子。 */
+    private void fillRemoteIcon(
+            FrameLayout holder,
+            DemoApp app,
+            int accent,
+            int iconBg
+    ) {
+        android.graphics.Bitmap cached =
+                com.docklet.shell.runtime.RemoteIcons.cached(activity, app.id(), app.version());
+        if (cached != null) {
+            showRemoteIcon(holder, cached);
+            return;
+        }
+        holder.setBackground(UiKit.rounded(activity, iconBg, 8f));
+        IconView glyph = new IconView(activity).type(ModuleGlyph.of(app.glyph()));
+        glyph.setColor(accent);
+        holder.addView(glyph, new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
+
+        String url = app.iconUrl();
+        if (url == null || url.isEmpty()) return;
+        com.docklet.shell.runtime.RemoteIcons.load(
+                activity, app.id(), app.version(), url, bitmap -> {
+                    if (bitmap == null) return;
+                    activity.runOnUiThread(() -> showRemoteIcon(holder, bitmap));
+                }
+        );
+    }
+
+    private void showRemoteIcon(FrameLayout holder, android.graphics.Bitmap bitmap) {
+        holder.removeAllViews();
+        holder.setBackground(null);
+        android.widget.ImageView image = new android.widget.ImageView(activity);
+        image.setImageBitmap(bitmap);
+        image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        image.setBackground(UiKit.rounded(activity, 0xFF000000, 8f));
+        image.setClipToOutline(true);
+        holder.addView(image, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+    }
+
     private void buildRepositoryList(LinearLayout list) {
         if (demoApps == null || demoApps.isEmpty()) {
             // Nothing preset in the app: the list only exists after a successful
@@ -3494,10 +3535,12 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         row.setLayoutParams(rowParams);
 
         FrameLayout icon = new FrameLayout(activity);
-        icon.setBackground(UiKit.rounded(activity, iconBg, 12f));
-        IconView glyph = new IconView(activity).type(ModuleGlyph.of(app.glyph()));
-        glyph.setColor(accent);
-        icon.addView(glyph, new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
+        InstalledModule local = installed.get(app.id());
+        if (local != null) {
+            UiKit.fillModuleIcon(icon, local, 38, 8f);
+        } else {
+            fillRemoteIcon(icon, app, accent, iconBg);
+        }
         row.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
 
         LinearLayout copy = new LinearLayout(activity);
