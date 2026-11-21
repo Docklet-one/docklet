@@ -41,7 +41,9 @@ public final class UiKit {
     public static final int RIPPLE = 0x18000000;
 
     public static final String PLATFORM_VERSION = "1.1.0";
-    public static final String SHELL_VERSION = "0.1.0";
+    /** 壳版本：直接取 build.gradle 的 versionName（去掉 -debug 后缀），
+     *  避免和 versionName 脱节。 */
+    public static final String SHELL_VERSION = com.docklet.shell.BuildConfig.VERSION_NAME.split("-")[0];
 
     private UiKit() {
     }
