@@ -218,7 +218,7 @@ public final class ModuleManager {
                     throw new ModuleException(
                             ModuleException.VERSION_DOWNGRADE,
                             "不允许降级：当前 " + baseline + "，包内 " + manifest.version()
-                    );
+                    ).withVersions(manifest.id(), baseline, manifest.version());
                 }
                 if (comparison == 0) {
                     throw new ModuleException(

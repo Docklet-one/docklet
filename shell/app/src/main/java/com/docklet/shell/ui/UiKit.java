@@ -105,6 +105,42 @@ public final class UiKit {
         return drawable;
     }
 
+    /**
+     * 模块图标：模块自带图片优先，圆角靠背景轮廓 + clipToOutline（一行效果，不裁位图）。
+     * 没有图片时回落到线条图标 + 淡色底。
+     */
+    public static void fillModuleIcon(
+            android.widget.FrameLayout holder,
+            com.docklet.platform.InstalledModule module,
+            int sizeDp,
+            float radiusDp
+    ) {
+        if (holder == null || module == null) return;
+        android.content.Context context = holder.getContext();
+        android.graphics.Bitmap bitmap =
+                com.docklet.shell.runtime.ModuleIcons.thumbnail(context, module);
+        if (bitmap != null) {
+            android.widget.ImageView image = new android.widget.ImageView(context);
+            image.setImageBitmap(bitmap);
+            image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            image.setBackground(rounded(context, 0xFF000000, radiusDp));
+            image.setClipToOutline(true);
+            holder.addView(image, new android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+            return;
+        }
+        int accent = parseColor(module.accent(), ACCENT);
+        holder.setBackground(rounded(context, blend(accent, 0xFFFFFFFF, 0.14f), radiusDp));
+        IconView glyph = new IconView(context).type(ModuleGlyph.of(module.glyph()));
+        glyph.setColor(accent);
+        int inner = dp(context, Math.max(14f, sizeDp * 0.52f));
+        holder.addView(glyph, new android.widget.FrameLayout.LayoutParams(
+                inner, inner, android.view.Gravity.CENTER
+        ));
+    }
+
     /** 品牌标记：和网页里 “D + 渐变底 + 圆角” 完全一样，纯代码画，不用图片。 */
     public static TextView brandMark(android.content.Context context, int sizeDp, float textSp) {
         TextView mark = text(context, "D", textSp, 0xFFFFF8ED, true);

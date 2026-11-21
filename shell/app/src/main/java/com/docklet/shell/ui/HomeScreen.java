@@ -423,20 +423,7 @@ public final class HomeScreen extends LinearLayout {
         card.addView(main, mainParams);
 
         FrameLayout iconWrap = new FrameLayout(activity);
-        android.graphics.Bitmap spotIcon = ModuleIcons.thumbnail(activity, module);
-        if (spotIcon != null) {
-            android.widget.ImageView image = new android.widget.ImageView(activity);
-            image.setImageBitmap(spotIcon);
-            image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            iconWrap.addView(image, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            ));
-        } else {
-            iconWrap.setBackground(UiKit.rounded(activity, Color.argb(35, 129, 195, 178), 15f));
-            IconView icon = new IconView(activity).type(iconFor(module));
-            icon.setColor(Color.rgb(184, 224, 213));
-            iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER));
-        }
+        UiKit.fillModuleIcon(iconWrap, module, 46, 10f);
         main.addView(iconWrap, new LinearLayout.LayoutParams(dp(46), dp(46)));
 
         LinearLayout copy = new LinearLayout(activity);
@@ -591,24 +578,7 @@ public final class HomeScreen extends LinearLayout {
         }
 
         FrameLayout iconWrap = new FrameLayout(activity);
-        android.graphics.Bitmap moduleIcon = ModuleIcons.thumbnail(activity, module);
-        if (moduleIcon != null) {
-            android.widget.ImageView image = new android.widget.ImageView(activity);
-            image.setImageBitmap(moduleIcon);
-            image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            iconWrap.addView(image, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            ));
-        } else {
-            iconWrap.setBackground(UiKit.rounded(
-                    activity,
-                    UiKit.blend(accent(module), Color.WHITE, 0.14f),
-                    13f
-            ));
-            IconView icon = new IconView(activity).type(iconFor(module));
-            icon.setColor(accent(module));
-            iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER));
-        }
+        UiKit.fillModuleIcon(iconWrap, module, 40, 9f);
         tile.addView(iconWrap, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         TextView name = UiKit.text(activity, module.name(), 10.5f, UiKit.INK, true);
@@ -638,7 +608,7 @@ public final class HomeScreen extends LinearLayout {
 
         FrameLayout iconWrap = new FrameLayout(activity);
         iconWrap.setBackground(UiKit.rounded(activity, UiKit.blend(accent(module), Color.WHITE, 0.14f), 13f));
-        IconView icon = new IconView(activity).type(iconFor(module));
+        IconView icon = new IconView(activity).type(ModuleGlyph.of(module.glyph()));
         icon.setColor(accent(module));
         iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER));
         row.addView(iconWrap, new LinearLayout.LayoutParams(dp(40), dp(40)));
@@ -981,21 +951,7 @@ public final class HomeScreen extends LinearLayout {
         row.setPadding(dp(13), dp(9), dp(13), dp(9));
 
         FrameLayout iconWrap = new FrameLayout(activity);
-        int accent = accent(module);
-        android.graphics.Bitmap rowIcon = ModuleIcons.thumbnail(activity, module);
-        if (rowIcon != null) {
-            android.widget.ImageView image = new android.widget.ImageView(activity);
-            image.setImageBitmap(rowIcon);
-            image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            iconWrap.addView(image, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            ));
-        } else {
-            iconWrap.setBackground(UiKit.rounded(activity, UiKit.blend(accent, Color.WHITE, 0.14f), 10f));
-            IconView icon = new IconView(activity).type(iconFor(module));
-            icon.setColor(accent);
-            iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER));
-        }
+        UiKit.fillModuleIcon(iconWrap, module, 32, 7f);
         row.addView(iconWrap, new LinearLayout.LayoutParams(dp(32), dp(32)));
 
         LinearLayout copy = new LinearLayout(activity);
@@ -1132,7 +1088,7 @@ public final class HomeScreen extends LinearLayout {
         card.addView(main, mainParams);
         FrameLayout iconWrap = new FrameLayout(activity);
         iconWrap.setBackground(UiKit.rounded(activity, 0x59FFFFFF, 13f));
-        IconView icon = new IconView(activity).type(iconFor(module));
+        IconView icon = new IconView(activity).type(ModuleGlyph.of(module.glyph()));
         icon.setColor(UiKit.INK);
         iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER));
         main.addView(iconWrap, new LinearLayout.LayoutParams(dp(40), dp(40)));
@@ -1821,26 +1777,5 @@ public final class HomeScreen extends LinearLayout {
         }
     }
 
-    private IconView.Type iconFor(InstalledModule module) {
-        String glyph = glyphs.get(module.id());
-        if (glyph == null) glyph = "";
-        switch (glyph) {
-            case "spark":
-                return IconView.Type.SPARK;
-            case "list":
-                return IconView.Type.LIST;
-            case "timer":
-                return IconView.Type.TIMER;
-            case "brush":
-                return IconView.Type.BRUSH;
-            case "calc":
-                return IconView.Type.CALC;
-            case "quiz":
-                return IconView.Type.QUIZ;
-            case "network":
-                return IconView.Type.NETWORK;
-            default:
-                return IconView.Type.SPARK;
-        }
-    }
+
 }

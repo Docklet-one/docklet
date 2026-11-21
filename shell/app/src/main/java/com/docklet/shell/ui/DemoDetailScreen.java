@@ -144,21 +144,13 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         hero.setPadding(0, dp(18), 0, dp(14));
 
         FrameLayout mark = new FrameLayout(activity);
-        android.graphics.Bitmap detailIcon = installed == null
-                ? null
-                : ModuleIcons.full(activity, installed);
-        if (detailIcon != null) {
-            android.widget.ImageView image = new android.widget.ImageView(activity);
-            image.setImageBitmap(detailIcon);
-            image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            mark.addView(image, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            ));
+        if (installed != null) {
+            UiKit.fillModuleIcon(mark, installed, 64, 14f);
         } else {
             mark.setBackground(UiKit.rounded(
                     activity, UiKit.blend(accent, Color.WHITE, 0.14f), 18f
             ));
-            IconView icon = new IconView(activity).type(iconFor(app.glyph()));
+            IconView icon = new IconView(activity).type(ModuleGlyph.of(app.glyph()));
             icon.setColor(accent);
             mark.addView(icon, new FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER));
         }
@@ -540,23 +532,5 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         return row;
     }
 
-    private IconView.Type iconFor(String glyph) {
-        if (glyph == null) return IconView.Type.SPARK;
-        switch (glyph) {
-            case "list":
-                return IconView.Type.LIST;
-            case "timer":
-                return IconView.Type.TIMER;
-            case "brush":
-                return IconView.Type.BRUSH;
-            case "calc":
-                return IconView.Type.CALC;
-            case "quiz":
-                return IconView.Type.QUIZ;
-            case "network":
-                return IconView.Type.NETWORK;
-            default:
-                return IconView.Type.SPARK;
-        }
-    }
+
 }

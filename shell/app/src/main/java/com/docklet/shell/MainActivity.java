@@ -69,6 +69,8 @@ import com.docklet.shell.ui.AddModuleScreen;
 import com.docklet.shell.ui.BackStep;
 import com.docklet.shell.ui.HomeScreen;
 import com.docklet.shell.ui.IconView;
+import com.docklet.shell.ui.BaseDialog;
+import com.docklet.shell.ui.ModuleGlyph;
 import com.docklet.shell.ui.DemoDetailScreen;
 import com.docklet.shell.ui.SheetDialog;
 import com.docklet.shell.ui.UiKit;
@@ -117,8 +119,6 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private HomeScreen home;
     private AddModuleScreen addScreen;
     private AddModuleScreen onlineScreen;
-    /** 本地安装页当前是否作为覆盖层打开。 */
-    private boolean localInstallOpen;
     /** 版本更新的落地页。 */
     private static final String SITE_URL = "https://docklet.cn";
     private AddModuleScreen.Listener appListener;
@@ -981,9 +981,9 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
                     @Override
                     public void onUrl(String url, String sha256) {
-                        installSource = SOURCE_MANUAL;
-                        installFromUrl(url, sha256, "模块包", null);
-                        installSource = SOURCE_CATALOG;
+                        installFromUrl(
+                                url, sha256, "模块包", null, false, SOURCE_MANUAL
+                        );
                     }
 
                     @Override
@@ -1111,10 +1111,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         if (addScreen == null) showAddScreen();
         if (addScreen == null) return;
         View page = addScreen.buildLocalInstallPage(this::closeOverlay);
-        if (page != null) {
-            pushOverlay(page);
-            localInstallOpen = true;
-        }
+        if (page != null) pushOverlay(page);
     }
 
     /** The standalone 在线应用 page: its own screen instance on the overlay layer. */
@@ -2084,7 +2081,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
         FrameLayout iconBox = new FrameLayout(this);
         iconBox.setBackground(UiKit.rounded(this, iconBg, 14f));
-        IconView icon = new IconView(this).type(iconFor(app.glyph()));
+        IconView icon = new IconView(this).type(ModuleGlyph.of(app.glyph()));
         icon.setColor(accent);
         iconBox.addView(icon, new FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER));
         row.addView(iconBox, new LinearLayout.LayoutParams(dp(44), dp(44)));
@@ -2137,26 +2134,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         return row;
     }
 
-    private IconView.Type iconFor(String icon) {
-        if (icon == null) return IconView.Type.SPARK;
-        switch (icon) {
-            case "list":
-                return IconView.Type.LIST;
-            case "timer":
-                return IconView.Type.TIMER;
-            case "brush":
-                return IconView.Type.BRUSH;
-            case "calc":
-                return IconView.Type.CALC;
-            case "quiz":
-                return IconView.Type.QUIZ;
-            case "network":
-                return IconView.Type.NETWORK;
-            case "spark":
-            default:
-                return IconView.Type.SPARK;
-        }
-    }
+
 
     private View optionRow(
             IconView.Type type,
@@ -2786,7 +2764,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         }
         canvas.drawColor(accent);
 
-        IconView glyph = new IconView(this).type(iconTypeFor(module.glyph()));
+        IconView glyph = new IconView(this).type(ModuleGlyph.of(module.glyph()));
         glyph.setColor(0xFFFFFFFF);
         int glyphSize = (int) (size * 0.52f);
         glyph.measure(
@@ -2875,7 +2853,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             String label,
             java.util.function.Consumer<InstalledModule> onSuccess
     ) {
-        installFromUrl(url, sha256, label, onSuccess, false);
+        installFromUrl(url, sha256, label, onSuccess, false, SOURCE_CATALOG);
     }
 
     private void installFromUrl(
@@ -2883,13 +2861,14 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             String sha256,
             String label,
             java.util.function.Consumer<InstalledModule> onSuccess,
-            boolean allowDowngrade
+            boolean allowDowngrade,
+            int source
     ) {
         if (moduleAwaitingResult) {
-            stopActiveModule(() -> installFromUrl(url, sha256, label, onSuccess, allowDowngrade));
+            stopActiveModule(() ->
+                    installFromUrl(url, sha256, label, onSuccess, allowDowngrade, source));
             return;
         }
-        final int source = installSource;
         String name = label == null || label.isEmpty() ? "模块" : label;
         if (!hasNetwork()) {
             InstallDialog offline = InstallDialog.show(
@@ -2987,36 +2966,20 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                     return;
                 } else if (ModuleException.VERSION_DOWNGRADE.equals(error.getCode())) {
                     dialog.dismiss();
-                    String[] versions = downgradeVersions(error);
-                    com.docklet.platform.ModuleManifest incoming = readPkgManifest(keptForView);
-                    InstalledModule installed = null;
-                    if (incoming != null) {
-                        try {
-                            installed = manager.get(incoming.id());
-                        } catch (ModuleException ignored) {
-                            installed = null;
-                        }
-                    }
-                    confirmDowngrade(
-                            installed == null ? name : installed.name(),
-                            installed == null ? null : installed.glyph(),
-                            installed == null ? versions[0] : installed.version(),
-                            incoming == null ? name : incoming.name(),
-                            incoming == null ? null : incoming.glyph(),
-                            incoming == null ? versions[1] : incoming.version(),
-                            () -> installFromUrl(url, sha256, label, onSuccess, true)
-                    );
+                    showDowngrade(error, name, () ->
+                            installFromUrl(url, sha256, label, onSuccess, true, source));
                     if (keptForView != null) {
                         //noinspection ResultOfMethodCallIgnored
                         keptForView.delete();
                     }
                     return;
                 } else {
-                    int previous = installSource;
-                    installSource = source;
-                    String text = installFailureText(error);
-                    installSource = previous;
-                    dialog.failure(IconView.Type.INFO, "安装失败", name, text);
+                    dialog.failure(
+                            IconView.Type.INFO,
+                            "安装失败",
+                            name,
+                            installFailureText(error, source)
+                    );
                 }
                 if (ModuleException.INSTALL_FAILED.equals(error.getCode())
                         || ModuleException.REMOTE_HASH_MISMATCH.equals(error.getCode())) {
@@ -3082,32 +3045,15 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                 main.post(() -> {
                     if (ModuleException.VERSION_DOWNGRADE.equals(error.getCode())) {
                         dialog.dismiss();
-                        String[] versions = downgradeVersions(error);
-                        com.docklet.platform.ModuleManifest incoming = readPkgManifest(temp);
-                        InstalledModule installed = null;
-                        if (incoming != null) {
-                            try {
-                                installed = manager.get(incoming.id());
-                            } catch (ModuleException ignored) {
-                                installed = null;
-                            }
-                        }
-                        confirmDowngrade(
-                                installed == null ? "本地模块包" : installed.name(),
-                                installed == null ? null : installed.glyph(),
-                                installed == null ? versions[0] : installed.version(),
-                                incoming == null ? "本地模块包" : incoming.name(),
-                                incoming == null ? null : incoming.glyph(),
-                                incoming == null ? versions[1] : incoming.version(),
-                                () -> installFromUri(uri, expectedSha256, true)
-                        );
+                        showDowngrade(error, "本地模块包", () ->
+                                installFromUri(uri, expectedSha256, true));
                         return;
                     }
                     dialog.failure(
                             IconView.Type.INFO,
                             "安装失败",
                             "本地模块包",
-                            installFailureText(error)
+                            installFailureText(error, SOURCE_MANUAL)
                     );
                 });
             } catch (Exception error) {
@@ -3127,13 +3073,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     /** 安装来源：目录（知道在装哪版）还是用户手填的链接。 */
     private static final int SOURCE_CATALOG = 0;
     private static final int SOURCE_MANUAL = 1;
-    private int installSource = SOURCE_CATALOG;
 
     /** 把安装失败翻译成用户能照做的一句话。 */
-    private String installFailureText(ModuleException error) {
+    private String installFailureText(ModuleException error, int source) {
         String code = error == null ? "" : error.getCode();
         if (ModuleException.REMOTE_NOT_FOUND.equals(code)) {
-            return installSource == SOURCE_MANUAL
+            return source == SOURCE_MANUAL
                     ? "链接里没有找到安装包，请检查地址"
                     : "安装包分发中，请稍后再试";
         }
@@ -3202,101 +3147,50 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         return stat;
     }
 
-    /** 从降级异常里取出「当前版本」和「包内版本」。 */
-    private String[] downgradeVersions(ModuleException error) {
-        String[] result = new String[]{"", ""};
-        String message = error == null ? "" : error.getMessage();
-        java.util.regex.Matcher matcher = java.util.regex.Pattern
-                .compile("当前\\s*([0-9][0-9.]*)\\s*[，,]\\s*包内\\s*([0-9][0-9.]*)")
-                .matcher(message == null ? "" : message);
-        if (matcher.find()) {
-            result[0] = matcher.group(1);
-            result[1] = matcher.group(2);
-        }
-        return result;
-    }
-
     /** 装旧版本前的确认：居中弹窗，和安装弹窗同一套头部。 */
     /** 同版本安装被拒绝时的说明：只解释原因，不给“覆盖”入口。 */
     private void showSameVersionDialog() {
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setCancelable(true);
-
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(20), dp(20), dp(20));
-        content.setBackground(UiKit.rounded(this, UiKit.SURFACE, 24f));
-        content.setElevation(dp(8));
-
-        LinearLayout head = new LinearLayout(this);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        FrameLayout tile = new FrameLayout(this);
-        tile.setBackground(UiKit.rounded(this, UiKit.SURFACE_SOFT, 13f));
-        IconView icon = new IconView(this).type(IconView.Type.INFO);
-        icon.setColor(UiKit.INK);
-        tile.addView(icon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
-        head.addView(tile, new LinearLayout.LayoutParams(dp(42), dp(42)));
-        TextView title = UiKit.text(this, "禁止安装", 17f, UiKit.INK, true);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        titleParams.leftMargin = dp(12);
-        head.addView(title, titleParams);
-        content.addView(head);
-
-        TextView reason = UiKit.text(this, "已有相同版本存在", 12.5f, UiKit.DANGER, false);
-        LinearLayout.LayoutParams reasonParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        reasonParams.topMargin = dp(16);
-        content.addView(reason, reasonParams);
-
+        BaseDialog dialog = BaseDialog.create(this, IconView.Type.INFO, "禁止安装", "")
+                .tint(UiKit.SURFACE_SOFT, UiKit.INK);
+        LinearLayout body = dialog.body();
+        body.addView(UiKit.text(this, "已有相同版本存在", 12.5f, UiKit.DANGER, false));
         TextView detail = UiKit.text(this, "直接覆盖会删除数据", 12f, UiKit.MUTED, false);
         LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
         detailParams.topMargin = dp(6);
-        content.addView(detail, detailParams);
-
-        TextView ok = UiKit.secondaryButton(this, "知道了");
-        ok.setOnClickListener(view -> dialog.dismiss());
-        LinearLayout.LayoutParams okParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
-        );
-        okParams.topMargin = dp(20);
-        content.addView(ok, okParams);
-
-        dialog.setContentView(content);
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setGravity(Gravity.CENTER);
-        }
+        body.addView(detail, detailParams);
+        dialog.addFullWidthButton("知道了", view -> dialog.dismiss());
         dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setLayout(dp(320), ViewGroup.LayoutParams.WRAP_CONTENT);
-        }
     }
 
-    /** 从 .pkg 里读出 module.json（降级时用来显示真实名称/图标/版本）。 */
-    private com.docklet.platform.ModuleManifest readPkgManifest(java.io.File pkg) {
-        if (pkg == null || !pkg.isFile()) return null;
-        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(pkg)) {
-            java.util.zip.ZipEntry entry = zip.getEntry("module.json");
-            if (entry == null) return null;
-            try (java.io.InputStream in = zip.getInputStream(entry)) {
-                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-                byte[] buffer = new byte[8192];
-                int read;
-                while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
-                return com.docklet.platform.ModuleManifest.fromJson(
-                        out.toString("UTF-8")
-                );
+    /** 降级确认：版本号来自异常上下文，不再解析文案、也不再重读包。 */
+    private void showDowngrade(
+            ModuleException error,
+            String fallbackName,
+            Runnable onContinue
+    ) {
+        String moduleId = error == null ? null : error.moduleId();
+        String currentVersion = error == null ? "" : error.currentVersion();
+        String packageVersion = error == null ? "" : error.packageVersion();
+        InstalledModule installed = null;
+        if (moduleId != null) {
+            try {
+                installed = manager.get(moduleId);
+            } catch (ModuleException ignored) {
+                installed = null;
             }
-        } catch (Exception error) {
-            return null;
         }
+        String label = installed == null ? fallbackName : installed.name();
+        confirmDowngrade(
+                label,
+                installed == null ? null : installed.glyph(),
+                installed == null ? currentVersion : installed.version(),
+                label,
+                installed == null ? null : installed.glyph(),
+                packageVersion,
+                onContinue
+        );
     }
 
     /** 装旧版本前的确认：两行版本对照 + 风险提示。 */
@@ -3309,39 +3203,11 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             String incomingVersion,
             Runnable onContinue
     ) {
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setCancelable(true);
-
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(20), dp(20), dp(20));
-        content.setBackground(UiKit.rounded(this, UiKit.SURFACE, 24f));
-        content.setElevation(dp(8));
-
-        LinearLayout head = new LinearLayout(this);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        FrameLayout tile = new FrameLayout(this);
-        tile.setBackground(UiKit.rounded(this, UiKit.DANGER_SOFT, 13f));
-        IconView icon = new IconView(this).type(IconView.Type.INFO);
-        icon.setColor(UiKit.DANGER);
-        tile.addView(icon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
-        head.addView(tile, new LinearLayout.LayoutParams(dp(42), dp(42)));
-        TextView title = UiKit.text(this, "已安装有新版本", 17f, UiKit.INK, true);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        titleParams.leftMargin = dp(12);
-        head.addView(title, titleParams);
-        content.addView(head);
-
-        content.addView(downgradeRow(
-                "已安装", installedName, installedGlyph, installedVersion
-        ));
-        content.addView(downgradeRow(
-                "要安装", incomingName, incomingGlyph, incomingVersion
-        ));
+        BaseDialog dialog = BaseDialog.create(this, IconView.Type.INFO, "已安装有新版本", "")
+                .tint(UiKit.DANGER_SOFT, UiKit.DANGER);
+        LinearLayout body = dialog.body();
+        body.addView(downgradeRow("已安装", installedName, installedGlyph, installedVersion));
+        body.addView(downgradeRow("要安装", incomingName, incomingGlyph, incomingVersion));
 
         TextView warning = UiKit.text(
                 this,
@@ -3354,37 +3220,15 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         LinearLayout.LayoutParams warningParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        warningParams.topMargin = dp(14);
-        content.addView(warning, warningParams);
+        warningParams.topMargin = dp(10);
+        body.addView(warning, warningParams);
 
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        TextView cancel = UiKit.secondaryButton(this, "取消");
-        cancel.setOnClickListener(view -> dialog.dismiss());
-        actions.addView(cancel, new LinearLayout.LayoutParams(0, dp(44), 1f));
-        TextView go = UiKit.primaryButton(this, "继续");
-        go.setOnClickListener(view -> {
+        dialog.addButton("取消", false, view -> dialog.dismiss());
+        dialog.addButton("继续", true, view -> {
             dialog.dismiss();
             onContinue.run();
         });
-        LinearLayout.LayoutParams goParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        goParams.leftMargin = dp(10);
-        actions.addView(go, goParams);
-        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        actionsParams.topMargin = dp(18);
-        content.addView(actions, actionsParams);
-
-        dialog.setContentView(content);
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setGravity(Gravity.CENTER);
-        }
         dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setLayout(dp(320), ViewGroup.LayoutParams.WRAP_CONTENT);
-        }
     }
 
     /** 一行：标签 + 模块图标 + 名称 + 靠右版本号。 */
@@ -3404,7 +3248,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
         FrameLayout iconWrap = new FrameLayout(this);
         iconWrap.setBackground(UiKit.rounded(this, UiKit.SURFACE_SOFT, 9f));
-        IconView icon = new IconView(this).type(iconTypeFor(glyph));
+        IconView icon = new IconView(this).type(ModuleGlyph.of(glyph));
         icon.setColor(UiKit.MUTED);
         iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(16), dp(16), Gravity.CENTER));
         row.addView(iconWrap, new LinearLayout.LayoutParams(dp(30), dp(30)));
@@ -3438,26 +3282,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     }
 
     /** 目录里的 glyph 名字转成画图标用的类型。 */
-    private IconView.Type iconTypeFor(String glyph) {
-        if (glyph == null) return IconView.Type.SPARK;
-        switch (glyph) {
-            case "terminal": return IconView.Type.LIST;
-            case "list": return IconView.Type.LIST;
-            case "timer": return IconView.Type.TIMER;
-            case "brush": return IconView.Type.BRUSH;
-            case "calc": return IconView.Type.CALC;
-            case "network": return IconView.Type.NETWORK;
-            case "game": return IconView.Type.GAME;
-            case "music": return IconView.Type.MUSIC;
-            case "leaf": return IconView.Type.LEAF;
-            case "book": return IconView.Type.BOOK;
-            case "camera": return IconView.Type.CAMERA;
-            case "chat": return IconView.Type.CHAT;
-            case "image": return IconView.Type.IMAGE;
-            case "shield": return IconView.Type.SHIELD;
-            default: return IconView.Type.SPARK;
-        }
-    }
+
 
     private String sha256(File file) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");

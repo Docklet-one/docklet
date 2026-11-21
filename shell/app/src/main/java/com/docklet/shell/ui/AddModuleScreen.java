@@ -1312,12 +1312,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
 
         int accent = UiKit.parseColor(module.accent(), UiKit.ACCENT);
         FrameLayout iconWrap = new FrameLayout(activity);
-        iconWrap.setBackground(UiKit.rounded(
-                activity, UiKit.blend(accent, Color.WHITE, 0.14f), 13f
-        ));
-        IconView icon = new IconView(activity).type(iconFor(glyphFor(module.id())));
-        icon.setColor(accent);
-        iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        UiKit.fillModuleIcon(iconWrap, module, 42, 9f);
         header.addView(iconWrap, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
         LinearLayout copy = new LinearLayout(activity);
@@ -1497,12 +1492,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
         FrameLayout tile = new FrameLayout(activity);
-        tile.setBackground(UiKit.rounded(
-                activity, UiKit.blend(accent, Color.WHITE, 0.14f), 13f
-        ));
-        IconView glyph = new IconView(activity).type(iconFor(glyphFor(module.id())));
-        glyph.setColor(accent);
-        tile.addView(glyph, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        UiKit.fillModuleIcon(tile, module, 42, 9f);
         head.addView(tile, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
         LinearLayout titles = new LinearLayout(activity);
@@ -1577,12 +1567,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         header.setGravity(Gravity.CENTER_VERTICAL);
 
         FrameLayout iconWrap = new FrameLayout(activity);
-        iconWrap.setBackground(UiKit.rounded(
-                activity, UiKit.blend(accent, Color.WHITE, 0.14f), 13f
-        ));
-        IconView icon = new IconView(activity).type(iconFor(glyphFor(module.id())));
-        icon.setColor(accent);
-        iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        UiKit.fillModuleIcon(iconWrap, module, 42, 9f);
         header.addView(iconWrap, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
         LinearLayout copy = new LinearLayout(activity);
@@ -1803,12 +1788,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
             });
 
             FrameLayout iconWrap = new FrameLayout(activity);
-            iconWrap.setBackground(UiKit.rounded(
-                    activity, UiKit.blend(accent, Color.WHITE, 0.14f), 12f
-            ));
-            IconView icon = new IconView(activity).type(iconFor(glyphFor(module.id())));
-            icon.setColor(accent);
-            iconWrap.addView(icon, new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER));
+            UiKit.fillModuleIcon(iconWrap, module, 40, 9f);
             row.addView(iconWrap, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
             TextView name = UiKit.text(activity, module.name(), 13f, UiKit.INK, true);
@@ -3404,14 +3384,8 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
                         return true;
                     });
 
-                    int accent = UiKit.parseColor(module.accent(), UiKit.ACCENT);
                     FrameLayout icon = new FrameLayout(activity);
-                    icon.setBackground(UiKit.rounded(
-                            activity, UiKit.blend(accent, Color.WHITE, 0.14f), 12f
-                    ));
-                    IconView glyph = new IconView(activity).type(iconFor(glyphFor(module.id())));
-                    glyph.setColor(accent);
-                    icon.addView(glyph, new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
+                    UiKit.fillModuleIcon(icon, module, 38, 8f);
                     tile.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
 
                     TextView name = UiKit.text(activity, module.name(), 9.5f, UiKit.INK, true);
@@ -3458,10 +3432,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         row.setLayoutParams(rowParams);
 
         FrameLayout icon = new FrameLayout(activity);
-        icon.setBackground(UiKit.rounded(activity, UiKit.blend(accent, Color.WHITE, 0.14f), 12f));
-        IconView glyph = new IconView(activity).type(iconFor(glyphFor(module.id())));
-        glyph.setColor(accent);
-        icon.addView(glyph, new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
+        UiKit.fillModuleIcon(icon, module, 38, 8f);
         row.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
 
         LinearLayout copy = new LinearLayout(activity);
@@ -3524,7 +3495,7 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
 
         FrameLayout icon = new FrameLayout(activity);
         icon.setBackground(UiKit.rounded(activity, iconBg, 12f));
-        IconView glyph = new IconView(activity).type(iconFor(app.glyph()));
+        IconView glyph = new IconView(activity).type(ModuleGlyph.of(app.glyph()));
         glyph.setColor(accent);
         icon.addView(glyph, new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
         row.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
@@ -3686,23 +3657,5 @@ public final class AddModuleScreen extends FrameLayout implements BackStep {
         return "已安装 " + module.version();
     }
 
-    private IconView.Type iconFor(String glyph) {
-        if (glyph == null) return IconView.Type.SPARK;
-        switch (glyph) {
-            case "list":
-                return IconView.Type.LIST;
-            case "timer":
-                return IconView.Type.TIMER;
-            case "brush":
-                return IconView.Type.BRUSH;
-            case "calc":
-                return IconView.Type.CALC;
-            case "quiz":
-                return IconView.Type.QUIZ;
-            case "network":
-                return IconView.Type.NETWORK;
-            default:
-                return IconView.Type.SPARK;
-        }
-    }
+
 }

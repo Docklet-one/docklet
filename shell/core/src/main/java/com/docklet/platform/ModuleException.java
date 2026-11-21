@@ -44,6 +44,30 @@ public final class ModuleException extends Exception {
         this.code = code;
     }
 
+    private String moduleId;
+    private String currentVersion;
+    private String packageVersion;
+
+    /** 版本类错误（降级/同版本）时附带上下文，避免上层去解析提示文案。 */
+    public ModuleException withVersions(String moduleId, String currentVersion, String packageVersion) {
+        this.moduleId = moduleId;
+        this.currentVersion = currentVersion;
+        this.packageVersion = packageVersion;
+        return this;
+    }
+
+    public String moduleId() {
+        return moduleId;
+    }
+
+    public String currentVersion() {
+        return currentVersion;
+    }
+
+    public String packageVersion() {
+        return packageVersion;
+    }
+
     public String getCode() {
         return code;
     }
