@@ -69,6 +69,9 @@ public final class HomeScreen extends LinearLayout {
         /** 设置页打开时触发一次版本检查。 */
         void refreshShellUpdate();
 
+        /** 设置页数据占用：回传 {代码字节, 数据字节}。 */
+        void requestStorageTotals(java.util.function.Consumer<long[]> callback);
+
         void onInstallFromFile();
 
         void onShowModuleDetails(InstalledModule module);
@@ -115,6 +118,8 @@ public final class HomeScreen extends LinearLayout {
     private TextView countView;
     private View emptyState;
     private TextView shellUpdateValue;
+    private TextView settingsDataValue;
+    private TextView lastValueView;
     private String query = "";
     private int activeTab;
     private boolean switchingTab;
@@ -1255,17 +1260,16 @@ public final class HomeScreen extends LinearLayout {
         LinearLayout status = new LinearLayout(activity);
         status.setOrientation(VERTICAL);
         status.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 18f));
-        long dataBytes = 0L;
-        for (InstalledModule module : modules) dataBytes += module.dataBytes();
         status.addView(settingRow(
                 IconView.Type.FILE,
                 "模块数据",
                 modules.size() + " 个模块",
-                UiKit.formatBytes(dataBytes),
+                "—",
                 null,
                 UiKit.TEAL,
                 UiKit.TEAL_SOFT
         ));
+        settingsDataValue = lastValueView;
         status.addView(settingRow(
                 IconView.Type.NETWORK,
                 "仓库线路",
@@ -1299,27 +1303,15 @@ public final class HomeScreen extends LinearLayout {
         LinearLayout about = new LinearLayout(activity);
         about.setOrientation(VERTICAL);
         about.setBackground(UiKit.rounded(activity, UiKit.SURFACE, 18f));
-        long aboutBytes = 0L;
-        for (InstalledModule module : modules) aboutBytes += module.dataBytes();
-        final long aboutDataBytes = aboutBytes;
         about.addView(settingRow(
                 IconView.Type.INFO,
                 "软件介绍",
                 "平台说明、版本与数据",
                 "›",
-                view -> showAboutInfo(
-                        "软件介绍",
-                        "Docklet 是一个本地优先的 HTML 模块宿主。\n\n"
-                                + "它不把所有能力堆进一个模块：Docklet 负责模块的安装、运行、隔离、存储和恢复；模块只提供自己的界面与业务，数据留在各自目录中。\n\n"
-                                + "在线目录只负责发现和下载；模块安装后在本机运行，Docklet 本身不依赖账号，数据由模块自己管理。\n\n"
-                                + "Docklet 坚持单前台 WebView，模块退出后释放页面；模块使用独立 origin 和独立 SQLite，崩溃后可恢复，卸载可清理数据。\n\n"
-                                + "已安装：" + modules.size() + " 个模块\n"
-                                + "模块数据：" + UiKit.formatBytes(aboutDataBytes) + "\n"
-                                + "运行方式：单前台 WebView · 独立 origin\n"
-                                + "数据位置：files/data/<id>/app.db\n"
-                                + "Shell " + UiKit.SHELL_VERSION
-                                + " · BUILD " + BuildConfig.BUILD_STAMP
-                ),
+                view -> {
+                    if (listener == null) return;
+                    listener.requestStorageTotals(sizes -> showAboutIntro(sizes[1]));
+                },
                 UiKit.ACCENT,
                 UiKit.ACCENT_SOFT
         ));
@@ -1361,6 +1353,14 @@ public final class HomeScreen extends LinearLayout {
         ));
         about.addView(shellUpdateRow());
         content.addView(about);
+
+        if (listener != null) {
+            listener.requestStorageTotals(sizes -> {
+                if (settingsDataValue != null) {
+                    settingsDataValue.setText(UiKit.formatBytes(sizes[1]));
+                }
+            });
+        }
 
         TextView foot = UiKit.label(
                 activity,
@@ -1494,6 +1494,23 @@ public final class HomeScreen extends LinearLayout {
         } catch (ActivityNotFoundException exception) {
             Toast.makeText(activity, error, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /** 软件介绍：占用大小现算，不在列表阶段累加。 */
+    private void showAboutIntro(long dataBytes) {
+        showAboutInfo(
+                "软件介绍",
+                "Docklet 是一个本地优先的 HTML 模块宿主。\n\n"
+                        + "它不把所有能力堆进一个模块：Docklet 负责模块的安装、运行、隔离、存储和恢复；模块只提供自己的界面与业务，数据留在各自目录中。\n\n"
+                        + "在线目录只负责发现和下载；模块安装后在本机运行，Docklet 本身不依赖账号，数据由模块自己管理。\n\n"
+                        + "Docklet 坚持单前台 WebView，模块退出后释放页面；模块使用独立 origin 和独立 SQLite，崩溃后可恢复，卸载可清理数据。\n\n"
+                        + "已安装：" + modules.size() + " 个模块\n"
+                        + "模块数据：" + UiKit.formatBytes(dataBytes) + "\n"
+                        + "运行方式：单前台 WebView · 独立 origin\n"
+                        + "数据位置：files/data/<id>/app.db\n"
+                        + "Shell " + UiKit.SHELL_VERSION
+                        + " · BUILD " + BuildConfig.BUILD_STAMP
+        );
     }
 
     private void showAboutInfo(String title, String body) {
@@ -1671,6 +1688,7 @@ public final class HomeScreen extends LinearLayout {
         if (value != null && !value.isEmpty()) {
             TextView valueView = UiKit.text(activity, value, 8.5f, UiKit.FAINT, false);
             row.addView(valueView);
+            lastValueView = valueView;
         }
         return row;
     }

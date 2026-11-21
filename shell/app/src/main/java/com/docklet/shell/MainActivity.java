@@ -225,6 +225,13 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             );
             storage = new StorageService(new File(files, "data"));
             inventory = new ModuleInventory(manager, io, main);
+            // 先用上次的索引渲染首页；一致性通过就不再整轮扫描。
+            List<InstalledModule> indexed =
+                    com.docklet.shell.runtime.ModuleIndex.read(this);
+            if (indexed != null) {
+                inventory.prime(indexed);
+                indexPrimed = true;
+            }
             crashGuard = new CrashGuard(new File(files, "crash_guard.json"));
             String interrupted = recoverInterruptedLaunch();
             if (interrupted != null) {
@@ -452,11 +459,20 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             renderHome(cached);
         }
         if (inventory == null) return;
-        inventory.refresh(true, modules -> {
-            if (isFinishing() || isDestroyed()) return;
-            if (!sameModules(renderedModules, modules)) {
-                renderHome(modules);
+        final boolean trustIndex = indexPrimed;
+        indexPrimed = false;
+        io.execute(() -> {
+            // 索引和磁盘一致时跳过整轮扫描（只查了 current 文件）。
+            if (trustIndex && cached != null && manager.isConsistent(cached)) {
+                return;
             }
+            main.post(() -> inventory.refresh(true, modules -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (!sameModules(renderedModules, modules)) {
+                    renderHome(modules);
+                }
+                io.execute(() -> com.docklet.shell.runtime.ModuleIndex.write(this, modules));
+            }));
         });
     }
 
@@ -540,11 +556,20 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
 
     @Override
     public void onOpenModule(InstalledModule module) {
-        if (crashGuard != null && crashGuard.hasFailure(module.id())) {
-            showCrashSheet(module);
+        if (module == null) return;
+        // 首页可能来自索引缓存：真正启动前用磁盘上的清单覆盖一次，
+        // 避免权限/入口等字段是索引里的占位值。
+        InstalledModule fresh = module;
+        try {
+            if (manager != null) fresh = manager.get(module.id());
+        } catch (ModuleException ignored) {
+            fresh = module;
+        }
+        if (crashGuard != null && crashGuard.hasFailure(fresh.id())) {
+            showCrashSheet(fresh);
             return;
         }
-        launchModule(module);
+        launchModule(fresh);
     }
 
     private void openModuleById(String id) {
@@ -666,6 +691,54 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     public void refreshShellUpdate() {
         // 不额外请求：只按当前目录缓存重算一次文案。
         if (home != null) home.refreshShellUpdateLabel();
+    }
+
+    /** 首帧是否来自索引（决定要不要做一次全量校验）。 */
+    private boolean indexPrimed;
+
+    /** 模块占用缓存：列表不再预计算，只有真正要显示时才量。 */
+    private final java.util.Map<String, long[]> sizeCache = new java.util.HashMap<>();
+
+    private void measureAsync(String id, java.util.function.Consumer<long[]> callback) {
+        if (id == null || callback == null) return;
+        long[] cached = sizeCache.get(id);
+        if (cached != null) {
+            callback.accept(cached);
+            return;
+        }
+        io.execute(() -> {
+            long[] sizes;
+            try {
+                sizes = manager.measure(id);
+            } catch (Exception error) {
+                sizes = new long[]{0L, 0L};
+            }
+            long[] result = sizes;
+            main.post(() -> {
+                sizeCache.put(id, result);
+                callback.accept(result);
+            });
+        });
+    }
+
+    @Override
+    public void requestStorageTotals(java.util.function.Consumer<long[]> callback) {
+        if (callback == null) return;
+        io.execute(() -> {
+            long code = 0L;
+            long data = 0L;
+            try {
+                for (InstalledModule module : manager.listInstalled()) {
+                    long[] sizes = manager.measure(module.id());
+                    code += sizes[0];
+                    data += sizes[1];
+                }
+            } catch (Exception ignored) {
+                // 读不到就按 0 报，设置页显示占位即可。
+            }
+            long[] result = new long[]{code, data};
+            main.post(() -> callback.accept(result));
+        });
     }
 
     private com.docklet.shell.demo.ShellUpdate.Info shellUpdateInfo() {
@@ -1123,6 +1196,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         demoDetailScreen = screen;
         demoDetailId = app.id();
         showOverlay(screen);
+        InstalledModule forSize = installedModule(app.id());
+        if (forSize != null) {
+            final DemoDetailScreen target = screen;
+            measureAsync(forSize.id(), sizes ->
+                    target.setFileSize(sizes[0] + sizes[1]));
+        }
     }
 
     /** Shows the app page as a normal peer page (the add screen is not an overlay any more). */
@@ -1141,6 +1220,9 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
     private void refreshScreens(List<InstalledModule> modules) {
         if (addScreen != null) addScreen.refreshInstalled(modules);
         if (onlineScreen != null) onlineScreen.refreshInstalled(modules);
+        if (modules != null) {
+            io.execute(() -> com.docklet.shell.runtime.ModuleIndex.write(this, modules));
+        }
     }
 
     private void restoreDemoAdd() {
@@ -2113,9 +2195,12 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                             : "上次启动失败",
                     false);
         }
-        addInfoRow(panel, "占用",
-                UiKit.formatBytes(module.codeBytes()) + " 代码 · "
-                        + UiKit.formatBytes(module.dataBytes()) + " 数据", true);
+        final TextView occupy = addInfoRow(panel, "占用", "…", true);
+        measureAsync(module.id(), sizes -> {
+            if (occupy == null) return;
+            occupy.setText(UiKit.formatBytes(sizes[0]) + " 代码 · "
+                    + UiKit.formatBytes(sizes[1]) + " 数据");
+        });
 
         if (crash.failed()) {
             TextView warning = UiKit.text(
@@ -2353,7 +2438,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         });
     }
 
-    private void addInfoRow(LinearLayout panel, String label, String value, boolean last) {
+    private TextView addInfoRow(LinearLayout panel, String label, String value, boolean last) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -2383,6 +2468,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
             dividerParams.rightMargin = dp(14);
             panel.addView(divider, dividerParams);
         }
+        return val;
     }
 
     private void confirmUninstall(InstalledModule module) {
@@ -2462,11 +2548,13 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         dataText.addView(UiKit.text(this, "同时删除数据", 13f, UiKit.INK, false));
         TextView path = UiKit.text(
                 this,
-                "data/" + module.id() + " · " + UiKit.formatBytes(module.dataBytes()),
+                "data/" + module.id() + " · …",
                 10.5f,
                 UiKit.FAINT,
                 false
         );
+        measureAsync(module.id(), sizes ->
+                path.setText("data/" + module.id() + " · " + UiKit.formatBytes(sizes[1])));
         LinearLayout.LayoutParams pathParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
@@ -2835,6 +2923,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
                             module.name(),
                             "✓ 已安装 " + module.name() + " · v" + module.version()
                     );
+                    sizeCache.remove(module.id());
                     if (inventory != null) {
                         inventory.refresh(true, modules -> refreshScreens(modules));
                     }
@@ -3311,6 +3400,7 @@ public final class MainActivity extends Activity implements HomeScreen.Listener 
         boolean fromAdd = uninstallFromAdd;
         uninstallFromAdd = false;
         // 所有入口共用：在线列表、已安装页、详情页都持有“已安装”快照。
+        sizeCache.clear();
         refreshScreens(remaining);
         // inventory 是新建在线页的数据源，卸载后必须重新读盘。
         if (inventory != null) {

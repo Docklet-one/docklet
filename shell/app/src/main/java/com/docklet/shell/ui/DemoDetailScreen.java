@@ -31,6 +31,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
     private final DemoApp app;
     private String state;
     private String installedVersion;
+    private TextView sizeValue;
     private final Listener listener;
     private LinearLayout contentHost;
     private View actionBar;
@@ -166,7 +167,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         stats.setOrientation(HORIZONTAL);
         stats.setPadding(0, dp(2), 0, dp(20));
         content.addView(stats);
-        addStat(stats, "文件大小", app.size() > 0 ? UiKit.formatBytes(app.size()) : "—");
+        sizeValue = addStat(stats, "文件大小", app.size() > 0 ? UiKit.formatBytes(app.size()) : "—");
         addStat(stats, "更新时间", app.updatedAt().isEmpty() ? "—" : app.updatedAt());
         // 第三格留空，保持项目原来三等分的排版（当前版本那一列被去掉了）。
         stats.addView(new View(activity), new LinearLayout.LayoutParams(0, 1, 1f));
@@ -244,7 +245,13 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         }
     }
 
-    private void addStat(LinearLayout parent, String label, String value) {
+    /** 占用大小算完之后回填（列表不再预计算大小）。 */
+    public void setFileSize(long bytes) {
+        if (sizeValue == null) return;
+        sizeValue.setText(bytes > 0 ? UiKit.formatBytes(bytes) : "—");
+    }
+
+    private TextView addStat(LinearLayout parent, String label, String value) {
         LinearLayout stat = new LinearLayout(activity);
         stat.setOrientation(VERTICAL);
         stat.setGravity(Gravity.START);
@@ -262,6 +269,7 @@ public final class DemoDetailScreen extends LinearLayout implements BackStep {
         valueParams.topMargin = dp(4);
         stat.addView(content, valueParams);
         parent.addView(stat, params);
+        return content;
     }
 
     private View detailLine(String label, String value) {

@@ -35,6 +35,11 @@ public final class ModuleInventory {
         return snapshot;
     }
 
+    /** 先用索引里的结果占位，首帧不等扫描。 */
+    public void prime(List<InstalledModule> modules) {
+        if (modules != null) snapshot = modules;
+    }
+
     /**
      * Refreshes in the background. A cached snapshot is returned immediately
      * through the callback when force is false.

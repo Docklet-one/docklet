@@ -393,10 +393,52 @@ public final class ModuleManager {
                 origin(id),
                 manifest.capabilities(),
                 versions,
-                FileOps.sizeOf(versionDir),
-                FileOps.sizeOf(data),
+                0L,
+                0L,
                 versionDir
         );
+    }
+
+    /**
+     * 轻量校验：索引里的 id/version 与磁盘一致时返回 true。
+     * 只读每个模块的 current 文件，不解析清单，用于冷启动跳过整轮扫描。
+     */
+    public boolean isConsistent(List<InstalledModule> indexed) {
+        if (indexed == null) return false;
+        File[] children = modulesRoot.listFiles();
+        if (children == null) return indexed.isEmpty();
+        java.util.Set<String> diskIds = new java.util.HashSet<>();
+        for (File child : children) {
+            if (child.isDirectory() && ModuleManifest.isValidId(child.getName())) {
+                diskIds.add(child.getName());
+            }
+        }
+        if (diskIds.size() != indexed.size()) return false;
+        for (InstalledModule module : indexed) {
+            if (!diskIds.contains(module.id())) return false;
+            try {
+                String current = currentVersion(module.id());
+                if (current == null || !current.equals(module.version())) return false;
+            } catch (Exception error) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 按需计算占用：{代码字节, 数据字节}。
+     * 列表接口不算大小（冷启动不该遍历所有目录），只有详情/设置需要时才调。
+     */
+    public long[] measure(String id) throws ModuleException {
+        validateId(id);
+        long code = 0L;
+        String current = currentVersion(id);
+        if (current != null) {
+            code = FileOps.sizeOf(new File(new File(modulesRoot, id), current));
+        }
+        long data = FileOps.sizeOf(new File(dataRoot, id));
+        return new long[]{code, data};
     }
 
     public synchronized String currentVersion(String id) throws ModuleException {

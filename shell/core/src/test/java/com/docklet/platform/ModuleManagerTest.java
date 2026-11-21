@@ -153,7 +153,8 @@ public class ModuleManagerTest {
         assertTrue(manager.listInstalled().isEmpty());
 
         manager.install(packageWith("demo", "1.0.0", "index.html", "index.html", "v1"));
-        assertTrue(manager.get("demo").dataBytes() > 0);
+        // 列表不再预计算大小：用 measure() 现算。
+        assertTrue(manager.measure("demo")[1] > 0);
 
         manager.uninstall("demo", true);
         assertFalse(new File(data, "demo").exists());
